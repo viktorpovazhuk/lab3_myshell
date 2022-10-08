@@ -1,8 +1,9 @@
-<mark>Template for your README. Remove all unused parts and instructions</mark>
-
-# Lab work <mark>NUMBER</mark>: <mark>SHORT TOPIC</mark>
-Authors (team): <mark>AUTHORS WITH GITHUB LINKS</mark><br>
-Variant: <mark>VARIANT SHOULD BE HERE</mark>
+# Lab work 3: Implementing command-line interpreter
+Authors (team): <a href="https://github.com/bogdanmagometa">Bohdan Mahometa</a>, 
+<a href="https://github.com/viktorpovazhuk">Viktor Povazhuk</a>,
+<a href="https://github.com/shevdan">Bohdan Shevchuk</a>
+<br>
+Variant: 
 ## Prerequisites
 
 <mark>LIST LIBRARIES/TOOLS/OTHER UTILITIES THAT NEED TO BE INSTALLED (E.G. GCC, OPENMP, CMAKE ETC)</mark>
