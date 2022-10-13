@@ -29,18 +29,31 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     const auto str_end = com_line.find_first_of('#');
     const auto str_range = str_end - str_begin;
     std::string clean_com_line = com_line.substr(str_begin, str_range);
-//    std::cout << clean_com_line << '\n';
+    std::cout << clean_com_line << '\n';
 
     // split by space
     std::stringstream streamData(clean_com_line);
     std::vector<std::string> args;
     std::string value;
     while (std::getline(streamData, value, ' ')) {
-        args.push_back(value);
+        // substitute env vars
+        if (value[0] == '$') {
+            auto var_ptr = getenv(value.substr(1, value.size() - 1).c_str());
+            std::string var_val;
+            if (var_ptr != nullptr) {
+                var_val = var_ptr;
+            }
+            value = var_val;
+            args.push_back(value);
+        } else if (nullptr) { // replace if wildcard
+
+        } else {
+            args.push_back(value);
+        }
     }
-//    for (auto &val: args) {
-//        std::cout << val << std::endl;
-//    }
+    for (auto &val: args) {
+        std::cout << val << std::endl;
+    }
 
     return std::move(args);
 }
@@ -64,11 +77,10 @@ void run_outer_command(std::vector<std::string> &args) {
         // TODO:
         //  1. What is status at all?
         //  2. What to do is command was incorrect: continue or exit? Continue, but main process prints info before '$'.
-    }
-    else {
+    } else {
         std::string child_name = args[0];
 
-        std::vector<const char*> args_for_exec;
+        std::vector<const char *> args_for_exec;
         for (const auto &str: args) {
             args_for_exec.push_back(str.c_str());
         }
@@ -76,8 +88,9 @@ void run_outer_command(std::vector<std::string> &args) {
 
         auto path_ptr = getenv("PATH");
         string path_var;
-        if(path_ptr != nullptr)
+        if (path_ptr != nullptr)
             path_var = path_ptr;
+        // TODO: add absolute directory not to execute script as a command?
         path_var += ":.";
         setenv("PATH", path_var.c_str(), 1);
 
@@ -96,14 +109,15 @@ void exec_com_line(const std::string &com_line) {
     if (args[0] == "mycat") {
         run_builtin_command(args);
     }
-    // check for script
-    else if (args.size() == 1 && fs::path{args[0]}.extension() == ".msh" && fs::exists(fs::path{args[0]})) {
+        // check for script
+    else if (args.size() == 1 && fs::path{args[0]}.extension() == ".msh" && fs::exists(fs::path{args[0]})
+             && fs::path{args[0]}.has_parent_path()) { // check for existence of path
         fs::path script_path{args[0]};
         args.push_back(args[0]);
         args[0] = "myshell";
         run_outer_command(args);
     }
-    // run fork-exec
+        // run fork-exec
     else {
         run_outer_command(args);
     }
@@ -117,7 +131,7 @@ void exec_com_lines(std::basic_istream<char> &com_stream) {
     }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc > 1) {
         std::unique_ptr<command_line_options_t> command_line_options;
         try {
