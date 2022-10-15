@@ -11,6 +11,8 @@
 #include <memory>
 #include <fstream>
 #include <filesystem>
+#include <regex>
+#include <fnmatch.h>
 
 #include "options_parser.h"
 #include "errors.h"
@@ -45,8 +47,48 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
             }
             value = var_val;
             args.push_back(value);
-        } else if (nullptr) { // replace if wildcard
+        } else if (fs::path{value}.extension() == ".txt") { // replace if wildcard
+            fs::path wildc_file_path{value};
+            // set searching path
+            fs::path wildc_parent_path{"./"};
+            if (wildc_file_path.has_parent_path()) {
+                wildc_parent_path = wildc_file_path.parent_path();
+            }
+            // check for existence
+            if (!fs::exists(wildc_parent_path)) {
+                args.push_back(value);
+                continue;
+            }
+            // iterate over path
+            std::string wildc_filename = wildc_file_path.filename().string();
+//            std::regex stem_expr{wildc_file_path.stem().string()};
+            std::vector<std::string> matched_file_paths;
+            fs::path cur_file_path;
+            for (const auto &entry: fs::directory_iterator(wildc_parent_path)) {
+                // compare file name and regex
+                cur_file_path = entry.path();
+//                if (std::regex_match(cur_file_path.stem().string(), stem_expr)) {
+//                    matched_file_paths.push_back(cur_file_path.string());
+//                }
 
+                int res;
+                res = fnmatch(wildc_filename.c_str(), cur_file_path.filename().c_str(), FNM_PATHNAME | FNM_PERIOD);
+
+                if (res == 0) {
+                    matched_file_paths.push_back(cur_file_path.string());
+                }
+                else if (res != FNM_NOMATCH) {
+                    perror("Error in matching");
+                    // TODO: handle exceptions in functions
+                    throw std::exception{};
+                }
+            }
+            // add to args
+            if (!matched_file_paths.empty()) {
+                args.insert(args.end(), matched_file_paths.begin(), matched_file_paths.end());
+            } else {
+                args.push_back(value);
+            }
         } else {
             args.push_back(value);
         }
