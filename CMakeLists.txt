@@ -56,7 +56,7 @@ include(cmake/CompilerWarnings.cmake)
 
 #! Project main executable source compilation
 add_executable(${PROJECT_NAME} myshell/src/main.cpp
-				myshell/src/options_parser.cpp myshell/include/options_parser.h myshell/include/errors.h)
+				myshell/src/options_parser.cpp myshell/include/options_parser.h myshell/include/myshell_errors.h myshell/include/myshell_exceptions.h)
 
 #! Put path to your project headers
 target_include_directories(${PROJECT_NAME} PRIVATE myshell/include)
@@ -68,6 +68,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} Boost::program_options Boost::system)
 
 add_executable(wildcard_matching examples/regex_matching.cpp)
+
+add_executable(paths examples/paths.cpp)
 						
 ##########################################################
 # Fixed CMakeLists.txt part 

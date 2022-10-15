@@ -13,9 +13,11 @@
 #include <filesystem>
 #include <regex>
 #include <fnmatch.h>
+#include <utility>
 
 #include "options_parser.h"
-#include "errors.h"
+#include "myshell_errors.h"
+#include "myshell_exceptions.h"
 
 namespace fs = std::filesystem;
 
@@ -33,13 +35,16 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     std::string clean_com_line = com_line.substr(str_begin, str_range);
     std::cout << clean_com_line << '\n';
 
-    // split by space
+    // split by space and expand
     std::stringstream streamData(clean_com_line);
     std::vector<std::string> args;
+    size_t arg_num = 0;
     std::string value;
     while (std::getline(streamData, value, ' ')) {
         // substitute env vars
-        if (value[0] == '$') {
+        if (arg_num == 0) {
+            args.push_back(value);
+        } else if (value[0] == '$') { // replace env variables
             auto var_ptr = getenv(value.substr(1, value.size() - 1).c_str());
             std::string var_val;
             if (var_ptr != nullptr) {
@@ -47,13 +52,10 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
             }
             value = var_val;
             args.push_back(value);
-        } else if (fs::path{value}.extension() == ".txt") { // replace if wildcard
+        } else if (value.find('/') != std::string::npos) { // replace if wildcard
             fs::path wildc_file_path{value};
             // set searching path
-            fs::path wildc_parent_path{"./"};
-            if (wildc_file_path.has_parent_path()) {
-                wildc_parent_path = wildc_file_path.parent_path();
-            }
+            fs::path wildc_parent_path = wildc_file_path.parent_path();
             // check for existence
             if (!fs::exists(wildc_parent_path)) {
                 args.push_back(value);
@@ -61,26 +63,20 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
             }
             // iterate over path
             std::string wildc_filename = wildc_file_path.filename().string();
-//            std::regex stem_expr{wildc_file_path.stem().string()};
             std::vector<std::string> matched_file_paths;
             fs::path cur_file_path;
             for (const auto &entry: fs::directory_iterator(wildc_parent_path)) {
                 // compare file name and regex
                 cur_file_path = entry.path();
-//                if (std::regex_match(cur_file_path.stem().string(), stem_expr)) {
-//                    matched_file_paths.push_back(cur_file_path.string());
-//                }
 
                 int res;
                 res = fnmatch(wildc_filename.c_str(), cur_file_path.filename().c_str(), FNM_PATHNAME | FNM_PERIOD);
 
                 if (res == 0) {
                     matched_file_paths.push_back(cur_file_path.string());
-                }
-                else if (res != FNM_NOMATCH) {
-                    perror("Error in matching");
-                    // TODO: handle exceptions in functions
-                    throw std::exception{};
+                } else if (res != FNM_NOMATCH) {
+                    std::string error_str{strerror(errno)};
+                    throw fnmatch_error{"Error in globbing: " + error_str};
                 }
             }
             // add to args
@@ -92,12 +88,14 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
         } else {
             args.push_back(value);
         }
+
+        arg_num += 1;
     }
     for (auto &val: args) {
         std::cout << val << std::endl;
     }
 
-    return std::move(args);
+    return args;
 }
 
 void run_outer_command(std::vector<std::string> &args) {
@@ -114,11 +112,15 @@ void run_outer_command(std::vector<std::string> &args) {
     }
 
     if (pid != 0) {
-        int status;
-        waitpid(pid, &status, 0);
-        // TODO:
-        //  1. What is status at all?
-        //  2. What to do is command was incorrect: continue or exit? Continue, but main process prints info before '$'.
+        int child_status;
+        waitpid(pid, &child_status, 0);
+        if (WIFEXITED(child_status)) {
+            int exit_status = WEXITSTATUS(child_status);
+        }
+        else if (WIFSIGNALED(child_status)) {
+            int signal_num = WTERMSIG(child_status);
+        }
+        // TODO: how shell use child exit status?
     } else {
         std::string child_name = args[0];
 
@@ -127,14 +129,6 @@ void run_outer_command(std::vector<std::string> &args) {
             args_for_exec.push_back(str.c_str());
         }
         args_for_exec.push_back(nullptr);
-
-        auto path_ptr = getenv("PATH");
-        string path_var;
-        if (path_ptr != nullptr)
-            path_var = path_ptr;
-        // TODO: add absolute directory not to execute script as a command?
-        path_var += ":.";
-        setenv("PATH", path_var.c_str(), 1);
 
         execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
 
@@ -147,20 +141,16 @@ void run_outer_command(std::vector<std::string> &args) {
 
 void exec_com_line(const std::string &com_line) {
     std::vector<std::string> args = parse_com_line(com_line);
-    // check for in-built command
-    if (args[0] == "mycat") {
+    if (args[0] == "mycat") { // check for in-built command
         run_builtin_command(args);
-    }
-        // check for script
-    else if (args.size() == 1 && fs::path{args[0]}.extension() == ".msh" && fs::exists(fs::path{args[0]})
-             && fs::path{args[0]}.has_parent_path()) { // check for existence of path
+    } else if (args.size() == 1 && fs::path{args[0]}.extension() == ".msh" && fs::exists(fs::path{args[0]})
+               &&
+               fs::path{args[0]}.has_parent_path()) { // check for script // security check for existence of directory
         fs::path script_path{args[0]};
         args.push_back(args[0]);
         args[0] = "myshell";
         run_outer_command(args);
-    }
-        // run fork-exec
-    else {
+    } else { // run fork-exec
         run_outer_command(args);
     }
 }
@@ -186,10 +176,23 @@ int main(int argc, char *argv[]) {
         std::string script_path = command_line_options->script_path;
 
         std::ifstream script_file(script_path);
-        exec_com_lines(script_file);
+        try {
+            exec_com_lines(script_file);
+        } catch (std::exception &ex) {
+            std::cerr << ex.what() << '\n';
+            exit(EXIT_FAILURE);
+        }
 
         exit(EXIT_SUCCESS);
     }
+
+    // add paths to shell and outer commands
+    auto path_ptr = getenv("PATH");
+    string path_var;
+    if (path_ptr != nullptr)
+        path_var = path_ptr;
+    path_var += ":" + fs::canonical("/proc/self/exe").parent_path().string();
+    setenv("PATH", path_var.c_str(), 1);
 
     while (true) {
         // TODO: add wd with created pwd() function
@@ -198,7 +201,11 @@ int main(int argc, char *argv[]) {
         std::string com_line;
         std::getline(std::cin, com_line);
 
-        exec_com_line(com_line);
+        try {
+            exec_com_line(com_line);
+        } catch (std::exception &ex) {
+            std::cerr << ex.what() << '\n';
+        }
     }
 
     return 0;
