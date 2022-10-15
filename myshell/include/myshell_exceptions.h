@@ -1,7 +1,3 @@
-//
-// Created by vivi on 15.10.22.
-//
-
 #ifndef MYSHELL_MYSHELL_EXCEPTIONS_H
 #define MYSHELL_MYSHELL_EXCEPTIONS_H
 

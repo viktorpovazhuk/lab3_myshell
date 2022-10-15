@@ -1,7 +1,3 @@
-//
-// Created by vivi on 14.10.22.
-//
-
 #include <fnmatch.h>
 #include <iostream>
 #include <string>

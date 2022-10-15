@@ -191,12 +191,19 @@ int main(int argc, char *argv[]) {
     string path_var;
     if (path_ptr != nullptr)
         path_var = path_ptr;
-    path_var += ":" + fs::canonical("/proc/self/exe").parent_path().string();
-    setenv("PATH", path_var.c_str(), 1);
+    else
+        path_var = "";
+    if (!path_var.empty())
+        path_var = ":" + path_var;
+    path_var = fs::canonical("/proc/self/exe").parent_path().string() + path_var;
+    int status = setenv("PATH", path_var.c_str(), 1);
+    if (status == -1) {
+        perror("Failed to set PATH variable");
+        exit(EXIT_FAILURE);
+    }
 
     while (true) {
-        // TODO: add wd with created pwd() function
-        std::cout << "$ ";
+        std::cout << std::filesystem::current_path().string() << " $ ";
 
         std::string com_line;
         std::getline(std::cin, com_line);
