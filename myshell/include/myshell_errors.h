@@ -2,7 +2,11 @@
 #define MYCAT_ERRORS_H
 
 enum Errors {
-    ECLOPTIONS = 1001
+    ECLOPTIONS = 25,
+    EFAILSET = 26
+
+
+
 };
 
 #endif //MYCAT_ERRORS_H

@@ -47,6 +47,8 @@ public:
     //! Explicit is better than implicit:
     command_line_options_t(const command_line_options_t &) = default;
 
+//    command_line_options_t(unsigned long i, std::vector<std::basic_string<char>> vector1);
+
     command_line_options_t &operator=(const command_line_options_t &) = delete;
 
     command_line_options_t(command_line_options_t &&) = default;
@@ -58,6 +60,10 @@ public:
     void parse(int ac, char **av);
 
     std::string script_path;
+
+
+
+
 };
 
 #endif //OPTIONS_PARSER_CONFIG_FILE_H

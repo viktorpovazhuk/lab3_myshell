@@ -20,6 +20,7 @@
 #include <boost/filesystem.hpp>
 
 #include "options_parser.h"
+#include "built_in_parser.h"
 #include "myshell_errors.h"
 #include "myshell_exceptions.h"
 
@@ -27,7 +28,65 @@ namespace fs = boost::filesystem;
 
 extern char **environ;
 
+int myerrnum = 0;
+
 void run_builtin_command(std::vector<std::string> &args) {
+    std::unique_ptr<com_line_built_in> commandLineOptions;
+    try {
+        commandLineOptions = std::make_unique<com_line_built_in>(args.size(), args);
+    }
+    catch (std::exception &ex) {
+        std::cerr << ex.what() << std::endl;
+        return;
+        exit(Errors::ECLOPTIONS);
+    }
+
+//
+    std::vector<std::string> parsed_args = commandLineOptions->get_filenames();
+//    std::cout << "PARSER: " << std::endl;
+//    for (auto &arg : parsed_args) {
+//        std::cout << arg << std::endl;
+//    }
+//    std::cout << "help = " <<  commandLineOptions->get_help_flag() << std::endl;
+
+
+    if (commandLineOptions->get_help_flag()) {
+        std::cout << commandLineOptions->get_help_msg() << std::endl;
+        return;
+    }
+
+
+    if (parsed_args[0] == "merrno") {
+        std::cout << myerrnum << std::endl;
+    }
+
+    else if (parsed_args[0] == "mexport") {
+        if (parsed_args.size() > 1)
+            for (size_t i = 1; i < parsed_args.size(); ++i) {
+                const auto str_eq = parsed_args[i].find_first_of('=');
+
+                std::string varname = parsed_args[i].substr(0, str_eq);
+                std::string val = parsed_args[i].substr(str_eq + 1, parsed_args[i].size());
+                int status = setenv(varname.c_str(), val.c_str(), 1);
+                if (status == -1) {
+                    perror("Failed to set PATH variable");
+                    myerrnum = EFAILSET;
+                }
+
+            }
+    }
+    else if(parsed_args[0] == "mexit") {
+        int exit_status = 0;
+        if (parsed_args.size() > 1) {
+            exit_status = atoi(parsed_args[1].c_str());
+        }
+        exit(exit_status);
+    }
+
+    else if(parsed_args[0] == "")
+
+    return;
+
 
 }
 
@@ -146,7 +205,7 @@ void run_outer_command(std::vector<std::string> &args) {
 void exec_com_line(const std::string &com_line) {
     std::vector<std::string> args = parse_com_line(com_line);
     if (args[0] == "mycat") { // check for in-built command
-        run_builtin_command(args);
+        run_outer_command(args);
     } else if (args.size() == 1 && fs::path{args[0]}.extension() == ".msh" && fs::exists(fs::path{args[0]})
                &&
                fs::path{args[0]}.has_parent_path()) { // check for script // security check for existence of directory
@@ -155,7 +214,8 @@ void exec_com_line(const std::string &com_line) {
         args[0] = "myshell";
         run_outer_command(args);
     } else { // run fork-exec
-        run_outer_command(args);
+
+        run_builtin_command(args);
     }
 }
 
@@ -203,14 +263,14 @@ int main(int argc, char *argv[]) {
         path_var = "";
     if (!path_var.empty())
         path_var = ":" + path_var;
-    fs::path parent_dir = fs::canonical("/proc/self/exe").parent_path();
+    fs::path parent_dir = fs::system_complete(argv[0]).parent_path();
     path_var = parent_dir.string() + ":" + (parent_dir / fs::path{"utils"}).string() + path_var;
     int status = setenv("PATH", path_var.c_str(), 1);
     if (status == -1) {
         perror("Failed to set PATH variable");
         exit(EXIT_FAILURE);
     }
-    std::cout << getenv("PATH") << std::endl;
+
     char *com_line;
     while ((com_line = readline(get_prompt().c_str())) != nullptr) {
         std::string com_line_str{com_line};

@@ -12,7 +12,7 @@ using std::string;
 
 command_line_options_t::command_line_options_t() {
     general_opt.add_options()
-            ("help,h",
+            ("help,h,hl",
              "Show help message")
             ("script,s",
              po::value<std::string>(),
@@ -37,6 +37,7 @@ void command_line_options_t::parse(int ac, char **av) {
         notify(var_map);
 
         if (var_map.count("help")) {
+            std::cout << "varmap " <<  var_map.count("help") << std:: endl;
             std::cout << general_opt << "\n";
             exit(EXIT_SUCCESS);
         }
