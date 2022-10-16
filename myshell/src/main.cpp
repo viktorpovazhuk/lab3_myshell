@@ -28,7 +28,8 @@ namespace fs = boost::filesystem;
 
 extern char **environ;
 
-int myerrnum = 0;
+int exit_status = 0;
+
 
 bool run_builtin_command(std::vector<std::string> &args) {
     std::unique_ptr<com_line_built_in> commandLineOptions;
@@ -52,14 +53,14 @@ bool run_builtin_command(std::vector<std::string> &args) {
 
 
     if (parsed_args[0] == "merrno") {
-        std::cout << myerrnum << std::endl;
-        myerrnum = 0;
+        std::cout << exit_status << std::endl;
+        exit_status = 0;
         if (parsed_args.size() > 1)
-            myerrnum = EWRONGPARAMS;
+            exit_status = EWRONGPARAMS;
     }
 
     else if (parsed_args[0] == "mexport") {
-        myerrnum = 0;
+        exit_status = 0;
         if (parsed_args.size() > 1)
             for (size_t i = 1; i < parsed_args.size(); ++i) {
                 const auto str_eq = parsed_args[i].find_first_of('=');
@@ -69,7 +70,7 @@ bool run_builtin_command(std::vector<std::string> &args) {
                 int status = setenv(varname.c_str(), val.c_str(), 1);
                 if (status == -1) {
                     perror("Failed to set PATH variable");
-                    myerrnum = EFAILSET;
+                    exit_status = EFAILSET;
                 }
 
             }
@@ -84,14 +85,46 @@ bool run_builtin_command(std::vector<std::string> &args) {
 
     else if(parsed_args[0] == "mpwd") {
         if (parsed_args.size() > 1) {
-            myerrnum = EWRONGPARAMS;
+            std::cerr << "mpwd does not take parameters" << std::endl;
+            exit_status = EWRONGPARAMS;
         }
-        else {
+        else
+            std::cout << fs::current_path().string() << std::endl;
+    }
+    else if(parsed_args[0] == "mecho") {
+        if(parsed_args.size() > 1) {
+            for(size_t i = 1; i < parsed_args.size(); ++i) {
+                std::cout << parsed_args[i] << " ";
+            }
+            std::cout << std::endl;
+        }
+        exit_status = 0;
+    }
+    else if(parsed_args[0] == "mcd") {
+        if(parsed_args.size() != 2) {
+            exit_status = EWRONGPARAMS;
+            std::cerr << "mcd takes only one parameter - path to change directory." << std::endl;
+        }
+        else{
+            if(std::filesystem::is_directory(parsed_args[1])) {
+                std::filesystem::current_path(parsed_args[1]);
+            }
+            else if(parsed_args[1] == "~") {
+                auto path_ptr = getenv("HOME");
+                if (path_ptr != nullptr)
+                    std::filesystem::current_path(path_ptr);
+
+            }
+            else{
+                exit_status = ENOTADIR;
+                std::cerr << "mcd: not a directory: " << parsed_args[1] << std::endl;
+            }
 
         }
-    } else {
-        return false;
     }
+    else
+        return false;
+
 
     return true;
 
@@ -104,7 +137,7 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     const auto str_end = com_line.find_first_of('#');
     const auto str_range = str_end - str_begin;
     std::string clean_com_line = com_line.substr(str_begin, str_range);
-    std::cout << clean_com_line << '\n';
+//    std::cout << clean_com_line << '\n';
 
     // split by space and expand
     std::stringstream streamData(clean_com_line);
@@ -162,9 +195,9 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
 
         arg_num += 1;
     }
-    for (auto &val: args) {
-        std::cout << val << std::endl;
-    }
+//    for (auto &val: args) {
+//        std::cout << val << std::endl;
+//    }
 
     return args;
 }

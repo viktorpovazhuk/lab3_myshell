@@ -4,7 +4,8 @@
 enum Errors {
     ECLOPTIONS = 25,
     EFAILSET = 26,
-    EWRONGPARAMS = 27
+    EWRONGPARAMS = 27,
+    ENOTADIR=28
 
 
 
