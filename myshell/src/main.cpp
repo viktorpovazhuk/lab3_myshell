@@ -207,7 +207,7 @@ void run_outer_command(std::vector<std::string> &args) {
 
     if (pid == -1) {
         perror("Fork failed");
-        myerrnum = Errors::EFORKFAIL;
+        exit_status = Errors::EFORKFAIL;
         return;
     }
 
@@ -215,9 +215,9 @@ void run_outer_command(std::vector<std::string> &args) {
         int child_status;
         waitpid(pid, &child_status, 0);
         if (WIFEXITED(child_status)) {
-            myerrnum = WEXITSTATUS(child_status);
+            exit_status = WEXITSTATUS(child_status);
         } else if (WIFSIGNALED(child_status)) {
-            myerrnum = Errors::ESIGNALFAIL;
+            exit_status = Errors::ESIGNALFAIL;
         }
     } else {
         std::string child_name;
