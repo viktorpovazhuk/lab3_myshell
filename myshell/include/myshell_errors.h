@@ -5,10 +5,10 @@ enum Errors {
     ECLOPTIONS = 25,
     EFAILSET = 26,
     EWRONGPARAMS = 27,
+    EFORKFAIL = 28,
+    EEXECFAIL = 29,
+    ESIGNALFAIL = 31,
     ENOTADIR=28
-
-
-
 };
 
 #endif //MYCAT_ERRORS_H
