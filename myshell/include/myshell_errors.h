@@ -10,6 +10,8 @@ enum Errors {
     ESIGNALFAIL = 31,
     ENOTADIR=32,
     ENOTASCRIPT=33,
+
+    EOTHER=34,
 };
 
 #endif //MYCAT_ERRORS_H

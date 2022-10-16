@@ -27,8 +27,6 @@
 
 namespace fs = boost::filesystem;
 
-extern char **environ;
-
 int main(int argc, char *argv[]) {
     if (argc > 1) {
         std::unique_ptr<command_line_options_t> command_line_options;

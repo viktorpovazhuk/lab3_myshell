@@ -25,13 +25,9 @@
 #include "myshell_exceptions.h"
 #include "myshell_commands.h"
 
-
 namespace fs = boost::filesystem;
 
-extern char **environ;
-
-int exit_status = 0;
-
+static int exit_status = 0;
 
 bool run_builtin_command(std::vector<std::string> &args) {
     std::unique_ptr<com_line_built_in> commandLineOptions;
@@ -41,7 +37,6 @@ bool run_builtin_command(std::vector<std::string> &args) {
     catch (std::exception &ex) {
         std::cerr << ex.what() << std::endl;
         return true;
-        exit(Errors::ECLOPTIONS);
     }
 
 
@@ -79,7 +74,7 @@ bool run_builtin_command(std::vector<std::string> &args) {
     }
     else if(parsed_args[0] == "mexit") {
         int exit_status = 0;
-        if (parsed_args.size() == 1) {
+        if (parsed_args.size() > 1) {
             exit_status = atoi(parsed_args[1].c_str());
         }
         exit(exit_status);
@@ -143,10 +138,7 @@ bool run_builtin_command(std::vector<std::string> &args) {
     else
         return false;
 
-
     return true;
-
-
 }
 
 std::vector<std::string> parse_com_line(const std::string &com_line) {
@@ -155,7 +147,6 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     const auto str_end = com_line.find_first_of('#');
     const auto str_range = str_end - str_begin;
     std::string clean_com_line = com_line.substr(str_begin, str_range);
-//    std::cout << clean_com_line << '\n';
 
     // split by space and expand
     std::stringstream streamData(clean_com_line);
@@ -213,9 +204,6 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
 
         arg_num += 1;
     }
-//    for (auto &val: args) {
-//        std::cout << val << std::endl;
-//    }
 
     return args;
 }
@@ -231,22 +219,33 @@ void run_outer_command(std::vector<std::string> &args) {
 
     if (pid != 0) {
         int child_status;
-        waitpid(pid, &child_status, 0);
+        while (true) {
+            int status = waitpid(pid, &child_status, 0);
+            if (status == -1) {
+                if (errno != EINTR) {
+                    perror("Unexpected error from waitpid");
+                    exit_status = Errors::EOTHER;
+                    return;
+                }
+            } else {
+                break;
+            }
+            // here EINTR happened
+        }
         if (WIFEXITED(child_status)) {
             exit_status = WEXITSTATUS(child_status);
         } else if (WIFSIGNALED(child_status)) {
             exit_status = Errors::ESIGNALFAIL;
         }
     } else {
-        std::string child_name;
+        std::string file_for_exec;
         std::vector<const char *> args_for_exec;
 
         if (fs::path{args[0]}.extension() == ".msh") {
-            std::cout << "executing as shell script" << std::endl;
-            child_name = "myshell";
+            file_for_exec = "myshell";
             args_for_exec.push_back("myshell");
         } else {
-            child_name = args[0];
+            file_for_exec = args[0];
         }
 
         for (const auto &str: args) {
@@ -254,8 +253,8 @@ void run_outer_command(std::vector<std::string> &args) {
         }
         args_for_exec.push_back(nullptr);
 
-        execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
-        perror("Failed to execute file as myshell script");
+        execvp(file_for_exec.c_str(), const_cast<char *const *>(args_for_exec.data()));
+        perror("Exec failed");
         exit(Errors::EEXECFAIL);
     }
 }
@@ -275,7 +274,6 @@ void exec_com_lines(std::basic_istream<char> &com_stream) {
         exec_com_line(com_line);
     }
 }
-
 
 std::string get_prompt() {
     return fs::current_path().string() + " $ ";
