@@ -8,7 +8,8 @@ enum Errors {
     EFORKFAIL = 28,
     EEXECFAIL = 29,
     ESIGNALFAIL = 31,
-    ENOTADIR=28
+    ENOTADIR=32,
+    ENOTASCRIPT=33,
 };
 
 #endif //MYCAT_ERRORS_H

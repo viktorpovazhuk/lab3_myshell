@@ -56,7 +56,7 @@ include(cmake/CompilerWarnings.cmake)
 
 #! Project main executable source compilation
 add_executable(${PROJECT_NAME} myshell/src/main.cpp
-				myshell/src/options_parser.cpp myshell/include/options_parser.h myshell/include/myshell_errors.h myshell/include/myshell_exceptions.h myshell/src/built_in_parser.cpp myshell/include/built_in_parser.h)
+				myshell/src/options_parser.cpp myshell/include/options_parser.h myshell/include/myshell_errors.h myshell/include/myshell_exceptions.h myshell/src/built_in_parser.cpp myshell/include/built_in_parser.h myshell/src/myshell_commands.cpp myshell/include/myshell_commands.h)
 
 #! Put path to your project headers
 target_include_directories(${PROJECT_NAME} PRIVATE myshell/include)
