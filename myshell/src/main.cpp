@@ -24,6 +24,31 @@ namespace fs = std::filesystem;
 extern char **environ;
 
 void run_builtin_command(std::vector<std::string> &args) {
+    std::unique_ptr<command_line_options_t> command_line_options;
+    try {
+        command_line_options = std::make_unique<command_line_options_t>(args.size(), args);
+    }
+    catch (std::exception &ex) {
+        std::cerr << ex.what() << std::endl;
+        exit(Errors::ECLOPTIONS);
+    }
+    std::cout << "help = " <<  command_line_options->get_help_flag() << std::endl;
+
+    if (args[0] == "merrno") {
+
+    }
+
+    if (args[0] == "mexport") {
+        if (args.size() < 2) {
+            return;
+        }
+        if (args[1] == "-hl" || args[1] == "--help") {
+            std::cout << "HELP FOR MEXPORT" << std::endl;
+            return;
+        }
+
+        std::cout << " SUPP " << std::endl;
+    }
 
 }
 
@@ -142,7 +167,7 @@ void run_outer_command(std::vector<std::string> &args) {
 void exec_com_line(const std::string &com_line) {
     std::vector<std::string> args = parse_com_line(com_line);
     if (args[0] == "mycat") { // check for in-built command
-        run_builtin_command(args);
+        run_outer_command(args);
     } else if (args.size() == 1 && fs::path{args[0]}.extension() == ".msh" && fs::exists(fs::path{args[0]})
                &&
                fs::path{args[0]}.has_parent_path()) { // check for script // security check for existence of directory
@@ -151,7 +176,8 @@ void exec_com_line(const std::string &com_line) {
         args[0] = "myshell";
         run_outer_command(args);
     } else { // run fork-exec
-        run_outer_command(args);
+
+        run_builtin_command(args);
     }
 }
 
@@ -195,7 +221,7 @@ int main(int argc, char *argv[]) {
         path_var = "";
     if (!path_var.empty())
         path_var = ":" + path_var;
-    path_var = fs::canonical("/proc/self/exe").parent_path().string() + path_var;
+//    path_var = fs::canonical("/proc/self/exe").parent_path().string() + path_var;
     int status = setenv("PATH", path_var.c_str(), 1);
     if (status == -1) {
         perror("Failed to set PATH variable");
