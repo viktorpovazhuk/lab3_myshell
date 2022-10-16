@@ -15,6 +15,9 @@
 #include <fnmatch.h>
 #include <utility>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include "options_parser.h"
 #include "myshell_errors.h"
 #include "myshell_exceptions.h"
@@ -202,17 +205,19 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    while (true) {
-        std::cout << std::filesystem::current_path().string() << " $ ";
-
-        std::string com_line;
-        std::getline(std::cin, com_line);
-
+    char *com_line;
+    std::string prompt = std::filesystem::current_path().string() + " $ ";
+    while ((com_line = readline(prompt.c_str())) != nullptr) {
+        std::string com_line_str{com_line};
+        if (com_line_str.size() > 0) {
+            add_history(com_line);
+        }
         try {
             exec_com_line(com_line);
         } catch (std::exception &ex) {
             std::cerr << ex.what() << '\n';
         }
+        free(com_line);
     }
 
     return 0;

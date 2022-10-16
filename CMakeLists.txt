@@ -66,9 +66,15 @@ target_include_directories(${PROJECT_NAME} PRIVATE myshell/include)
 find_package(Boost 1.71.0 COMPONENTS program_options system REQUIRED)
 target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} Boost::program_options Boost::system)
+# add readline library
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
+		${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+find_package(Readline)
+target_include_directories(${PROJECT_NAME} PRIVATE ${Readline_INCLUDE_DIR})
+target_link_libraries(${PROJECT_NAME} ${Readline_LIBRARY})
 
+#! Additional executables
 add_executable(wildcard_matching examples/regex_matching.cpp)
-
 add_executable(paths examples/paths.cpp)
 						
 ##########################################################
