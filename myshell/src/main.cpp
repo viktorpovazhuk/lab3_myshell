@@ -30,14 +30,14 @@ extern char **environ;
 
 int myerrnum = 0;
 
-void run_builtin_command(std::vector<std::string> &args) {
+bool run_builtin_command(std::vector<std::string> &args) {
     std::unique_ptr<com_line_built_in> commandLineOptions;
     try {
         commandLineOptions = std::make_unique<com_line_built_in>(args.size(), args);
     }
     catch (std::exception &ex) {
         std::cerr << ex.what() << std::endl;
-        return;
+        return true;
         exit(Errors::ECLOPTIONS);
     }
 
@@ -47,7 +47,7 @@ void run_builtin_command(std::vector<std::string> &args) {
 
     if (commandLineOptions->get_help_flag()) {
         std::cout << commandLineOptions->get_help_msg() << std::endl;
-        return;
+        return true;
     }
 
 
@@ -89,9 +89,11 @@ void run_builtin_command(std::vector<std::string> &args) {
         else {
 
         }
+    } else {
+        return false;
     }
 
-    return;
+    return true;
 
 
 }
@@ -167,17 +169,12 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     return args;
 }
 
-void run_outer_command(std::vector<std::string> &args) {
+bool run_outer_command(std::vector<std::string> &args) {
     pid_t pid = fork();
 
-    while (pid == -1) {
-        if (errno == EINTR) {
-            pid = fork();
-            continue;
-        } else {
-            perror("Fork failed");
-            exit(errno);
-        }
+    if (pid == -1) {
+        perror("Fork failed");
+        exit(EXIT_FAILURE);
     }
 
     if (pid != 0) {
@@ -199,29 +196,29 @@ void run_outer_command(std::vector<std::string> &args) {
         }
         args_for_exec.push_back(nullptr);
 
-        execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
+        int status = execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
+
+        if (errno == ENOEXEC) {
+            // executable in unrecognized format.
+            // we should try to run it as shell script instead
+            execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
+            exit(EXIT_FAILURE);
+            return true;
+        }
 
         // bug of CLion: reads firstly from cout, then from cerr
         // even if buffers are flushed
         perror("Execve failed");
         exit(errno);
     }
+    return false;
 }
 
 void exec_com_line(const std::string &com_line) {
     std::vector<std::string> args = parse_com_line(com_line);
-    if (args[0] == "mycat") { // check for in-built command
+    bool is_builtin = run_builtin_command(args);
+    if (!is_builtin) {
         run_outer_command(args);
-    } else if (args.size() == 1 && fs::path{args[0]}.extension() == ".msh" && fs::exists(fs::path{args[0]})
-               &&
-               fs::path{args[0]}.has_parent_path()) { // check for script // security check for existence of directory
-        fs::path script_path{args[0]};
-        args.push_back(args[0]);
-        args[0] = "myshell";
-        run_outer_command(args);
-    } else { // run fork-exec
-
-        run_builtin_command(args);
     }
 }
 
