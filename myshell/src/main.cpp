@@ -40,13 +40,8 @@ void run_builtin_command(std::vector<std::string> &args) {
         exit(Errors::ECLOPTIONS);
     }
 
-//
+
     std::vector<std::string> parsed_args = commandLineOptions->get_filenames();
-//    std::cout << "PARSER: " << std::endl;
-//    for (auto &arg : parsed_args) {
-//        std::cout << arg << std::endl;
-//    }
-//    std::cout << "help = " <<  commandLineOptions->get_help_flag() << std::endl;
 
 
     if (commandLineOptions->get_help_flag()) {
@@ -57,9 +52,13 @@ void run_builtin_command(std::vector<std::string> &args) {
 
     if (parsed_args[0] == "merrno") {
         std::cout << myerrnum << std::endl;
+        myerrnum = 0;
+        if (parsed_args.size() > 1)
+            myerrnum = EWRONGPARAMS;
     }
 
     else if (parsed_args[0] == "mexport") {
+        myerrnum = 0;
         if (parsed_args.size() > 1)
             for (size_t i = 1; i < parsed_args.size(); ++i) {
                 const auto str_eq = parsed_args[i].find_first_of('=');
@@ -76,13 +75,20 @@ void run_builtin_command(std::vector<std::string> &args) {
     }
     else if(parsed_args[0] == "mexit") {
         int exit_status = 0;
-        if (parsed_args.size() > 1) {
+        if (parsed_args.size() == 1) {
             exit_status = atoi(parsed_args[1].c_str());
         }
         exit(exit_status);
     }
 
-    else if(parsed_args[0] == "")
+    else if(parsed_args[0] == "mpwd") {
+        if (parsed_args.size() > 1) {
+            myerrnum = EWRONGPARAMS;
+        }
+        else {
+
+        }
+    }
 
     return;
 

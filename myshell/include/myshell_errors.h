@@ -3,7 +3,8 @@
 
 enum Errors {
     ECLOPTIONS = 25,
-    EFAILSET = 26
+    EFAILSET = 26,
+    EWRONGPARAMS = 27
 
 
 
