@@ -10,19 +10,20 @@
 #include <sys/wait.h>
 #include <memory>
 #include <fstream>
-#include <filesystem>
 #include <regex>
 #include <fnmatch.h>
 #include <utility>
+#include <cstdlib>
 
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <boost/filesystem.hpp>
 
 #include "options_parser.h"
 #include "myshell_errors.h"
 #include "myshell_exceptions.h"
 
-namespace fs = std::filesystem;
+namespace fs = boost::filesystem;
 
 extern char **environ;
 
@@ -166,6 +167,10 @@ void exec_com_lines(std::basic_istream<char> &com_stream) {
     }
 }
 
+std::string get_prompt() {
+    return fs::current_path().string() + " $ ";
+}
+
 int main(int argc, char *argv[]) {
     if (argc > 1) {
         std::unique_ptr<command_line_options_t> command_line_options;
@@ -198,16 +203,16 @@ int main(int argc, char *argv[]) {
         path_var = "";
     if (!path_var.empty())
         path_var = ":" + path_var;
-    path_var = fs::canonical("/proc/self/exe").parent_path().string() + path_var;
+    fs::path parent_dir = fs::canonical("/proc/self/exe").parent_path();
+    path_var = parent_dir.string() + ":" + (parent_dir / fs::path{"utils"}).string() + path_var;
     int status = setenv("PATH", path_var.c_str(), 1);
     if (status == -1) {
         perror("Failed to set PATH variable");
         exit(EXIT_FAILURE);
     }
-
+    std::cout << getenv("PATH") << std::endl;
     char *com_line;
-    std::string prompt = std::filesystem::current_path().string() + " $ ";
-    while ((com_line = readline(prompt.c_str())) != nullptr) {
+    while ((com_line = readline(get_prompt().c_str())) != nullptr) {
         std::string com_line_str{com_line};
         if (com_line_str.size() > 0) {
             add_history(com_line);
