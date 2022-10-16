@@ -169,49 +169,44 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     return args;
 }
 
-bool run_outer_command(std::vector<std::string> &args) {
+void run_outer_command(std::vector<std::string> &args) {
     pid_t pid = fork();
 
     if (pid == -1) {
         perror("Fork failed");
-        exit(EXIT_FAILURE);
+        myerrnum = Errors::EFORKFAIL;
+        return;
     }
 
     if (pid != 0) {
         int child_status;
         waitpid(pid, &child_status, 0);
         if (WIFEXITED(child_status)) {
-            int exit_status = WEXITSTATUS(child_status);
+            myerrnum = WEXITSTATUS(child_status);
+        } else if (WIFSIGNALED(child_status)) {
+            myerrnum = Errors::ESIGNALFAIL;
         }
-        else if (WIFSIGNALED(child_status)) {
-            int signal_num = WTERMSIG(child_status);
-        }
-        // TODO: how shell use child exit status?
     } else {
-        std::string child_name = args[0];
-
+        std::string child_name;
         std::vector<const char *> args_for_exec;
+
+        if (fs::path{args[0]}.extension() == ".msh") {
+            std::cout << "executing as shell script" << std::endl;
+            child_name = "myshell";
+            args_for_exec.push_back("myshell");
+        } else {
+            child_name = args[0];
+        }
+
         for (const auto &str: args) {
             args_for_exec.push_back(str.c_str());
         }
         args_for_exec.push_back(nullptr);
 
-        int status = execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
-
-        if (errno == ENOEXEC) {
-            // executable in unrecognized format.
-            // we should try to run it as shell script instead
-            execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
-            exit(EXIT_FAILURE);
-            return true;
-        }
-
-        // bug of CLion: reads firstly from cout, then from cerr
-        // even if buffers are flushed
-        perror("Execve failed");
-        exit(errno);
+        execvp(child_name.c_str(), const_cast<char *const *>(args_for_exec.data()));
+        perror("Failed to execute file as myshell script");
+        exit(Errors::EEXECFAIL);
     }
-    return false;
 }
 
 void exec_com_line(const std::string &com_line) {

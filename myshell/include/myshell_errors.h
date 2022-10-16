@@ -4,9 +4,11 @@
 enum Errors {
     ECLOPTIONS = 25,
     EFAILSET = 26,
-    EWRONGPARAMS = 27
-
-
+    EWRONGPARAMS = 27,
+    EFORKFAIL = 28,
+    EEXECFAIL = 29,
+    ESHELLFAIL = 30,
+    ESIGNALFAIL = 31,
 
 };
 
