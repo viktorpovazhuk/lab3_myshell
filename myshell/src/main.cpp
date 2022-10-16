@@ -310,7 +310,7 @@ int main(int argc, char *argv[]) {
     char *com_line;
     while ((com_line = readline(get_prompt().c_str())) != nullptr) {
         std::string com_line_str{com_line};
-        if (com_line_str.size() > 0) {
+        if (!com_line_str.empty()) {
             add_history(com_line);
         }
         try {
