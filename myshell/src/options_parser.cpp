@@ -32,19 +32,13 @@ void command_line_options_t::parse(int ac, char **av) {
         po::parsed_options parsed = po::command_line_parser(ac, av)
                 .options(general_opt)
                 .positional(positional_opt)
-                .allow_unregistered()
                 .run();
-//        args = po::collect_unrecognized(parsed.options, po::include_positional);
         po::store(parsed, var_map);
         notify(var_map);
-        help_flag = var_map.count("help");
-
-        std::cout << "varmap " <<  var_map.count("help") << std:: endl;
 
         if (var_map.count("help")) {
             std::cout << "varmap " <<  var_map.count("help") << std:: endl;
-//            std::cout << general_opt << "\n";
-            help_flag = true;
+            std::cout << general_opt << "\n";
             exit(EXIT_SUCCESS);
         }
 
@@ -55,10 +49,3 @@ void command_line_options_t::parse(int ac, char **av) {
         throw OptionsParseException(ex.what()); // Convert to our error type
     }
 }
-//
-//command_line_options_t::command_line_options_t(unsigned long ac, std::vector<std::basic_string<char>> av) :
-//    command_line_options_t() // Delegate constructor
-//    {
-//        parse(ac, av);
-//    }
-//}

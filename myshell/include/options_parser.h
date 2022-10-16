@@ -36,9 +36,6 @@ protected:
     boost::program_options::variables_map var_map{};
     boost::program_options::options_description general_opt{};
     boost::program_options::positional_options_description positional_opt{};
-
-    bool help_flag = false;
-
 };
 
 class command_line_options_t : public options_parser_t {
@@ -50,7 +47,7 @@ public:
     //! Explicit is better than implicit:
     command_line_options_t(const command_line_options_t &) = default;
 
-    command_line_options_t(unsigned long i, std::vector<std::basic_string<char>> vector1);
+//    command_line_options_t(unsigned long i, std::vector<std::basic_string<char>> vector1);
 
     command_line_options_t &operator=(const command_line_options_t &) = delete;
 
@@ -62,9 +59,8 @@ public:
 
     void parse(int ac, char **av);
 
-    [[nodiscard]] bool get_help_flag() const { return help_flag; };
-
     std::string script_path;
+
 
 
 

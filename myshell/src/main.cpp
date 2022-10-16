@@ -19,6 +19,7 @@
 #include <readline/history.h>
 
 #include "options_parser.h"
+#include "built_in_parser.h"
 #include "myshell_errors.h"
 #include "myshell_exceptions.h"
 
@@ -26,32 +27,65 @@ namespace fs = std::filesystem;
 
 extern char **environ;
 
+int myerrnum = 0;
+
 void run_builtin_command(std::vector<std::string> &args) {
-    std::unique_ptr<command_line_options_t> command_line_options;
+    std::unique_ptr<com_line_built_in> commandLineOptions;
     try {
-        command_line_options = std::make_unique<command_line_options_t>(args.size(), args);
+        commandLineOptions = std::make_unique<com_line_built_in>(args.size(), args);
     }
     catch (std::exception &ex) {
         std::cerr << ex.what() << std::endl;
+        return;
         exit(Errors::ECLOPTIONS);
     }
-    std::cout << "help = " <<  command_line_options->get_help_flag() << std::endl;
 
-    if (args[0] == "merrno") {
+//
+    std::vector<std::string> parsed_args = commandLineOptions->get_filenames();
+//    std::cout << "PARSER: " << std::endl;
+//    for (auto &arg : parsed_args) {
+//        std::cout << arg << std::endl;
+//    }
+//    std::cout << "help = " <<  commandLineOptions->get_help_flag() << std::endl;
 
+
+    if (commandLineOptions->get_help_flag()) {
+        std::cout << commandLineOptions->get_help_msg() << std::endl;
+        return;
     }
 
-    if (args[0] == "mexport") {
-        if (args.size() < 2) {
-            return;
-        }
-        if (args[1] == "-hl" || args[1] == "--help") {
-            std::cout << "HELP FOR MEXPORT" << std::endl;
-            return;
-        }
 
-        std::cout << " SUPP " << std::endl;
+    if (parsed_args[0] == "merrno") {
+        std::cout << myerrnum << std::endl;
     }
+
+    else if (parsed_args[0] == "mexport") {
+        if (parsed_args.size() > 1)
+            for (size_t i = 1; i < parsed_args.size(); ++i) {
+                const auto str_eq = parsed_args[i].find_first_of('=');
+
+                std::string varname = parsed_args[i].substr(0, str_eq);
+                std::string val = parsed_args[i].substr(str_eq + 1, parsed_args[i].size());
+                int status = setenv(varname.c_str(), val.c_str(), 1);
+                if (status == -1) {
+                    perror("Failed to set PATH variable");
+                    myerrnum = EFAILSET;
+                }
+
+            }
+    }
+    else if(parsed_args[0] == "mexit") {
+        int exit_status = 0;
+        if (parsed_args.size() > 1) {
+            exit_status = atoi(parsed_args[1].c_str());
+        }
+        exit(exit_status);
+    }
+
+    else if(parsed_args[0] == "")
+
+    return;
+
 
 }
 
