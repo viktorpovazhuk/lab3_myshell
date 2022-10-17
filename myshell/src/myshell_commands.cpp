@@ -90,10 +90,10 @@ bool run_builtin_command(std::vector<std::string> &args) {
     }
     else if(parsed_args[0] == "mecho") {
         if(parsed_args.size() > 1) {
-            for(size_t i = 1; i < parsed_args.size(); ++i) {
+            for(size_t i = 1; i < parsed_args.size() - 1; ++i) {
                 std::cout << parsed_args[i] << " ";
             }
-            std::cout << std::endl;
+            std::cout << parsed_args[parsed_args.size() - 1] << std::endl;
         }
         exit_status = 0;
     }
