@@ -142,15 +142,29 @@ bool run_builtin_command(std::vector<std::string> &args) {
 }
 
 std::vector<std::string> parse_com_line(const std::string &com_line) {
+    std::vector<std::string> args;
+
     // remove leading spaces and comment
-    const auto str_begin = com_line.find_first_not_of(' ');
-    const auto str_end = com_line.find_first_of('#');
-    const auto str_range = str_end - str_begin;
+    auto str_begin = com_line.find_first_not_of(' ');
+    if (str_begin == std::string::npos) {
+        return args;
+    }
+    auto str_end = com_line.find_first_of('#');
+    if (str_end == std::string::npos) {
+        str_end = com_line.size();
+    }
+    auto str_range = str_end - str_begin;
     std::string clean_com_line = com_line.substr(str_begin, str_range);
+
+    // remove multiple spaces
+    size_t pos;
+    while((pos = clean_com_line.find("  ")) != std::string::npos)
+    {
+        clean_com_line.replace(pos, 2, " ");
+    }
 
     // split by space and expand
     std::stringstream streamData(clean_com_line);
-    std::vector<std::string> args;
     size_t arg_num = 0;
     std::string value;
     while (std::getline(streamData, value, ' ')) {
@@ -261,6 +275,9 @@ void run_outer_command(std::vector<std::string> &args) {
 
 void exec_com_line(const std::string &com_line) {
     std::vector<std::string> args = parse_com_line(com_line);
+    if (args.empty()) {
+        return;
+    }
     bool is_builtin = run_builtin_command(args);
     if (!is_builtin) {
         run_outer_command(args);
