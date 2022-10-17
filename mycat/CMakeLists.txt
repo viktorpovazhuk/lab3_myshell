@@ -4,8 +4,8 @@ cmake_minimum_required(VERSION 3.15)
 
 #! CHANGE YOUR PROJECT NAME
 #  It is used as your project's main executable name. 
-set(PROJECT_NAME myshell)
-project(${PROJECT_NAME} C CXX) # project(${PROJECT_NAME} C CXX ASM)
+set(PROJECT_NAME mycat)
+#project(${PROJECT_NAME} C CXX) # project(${PROJECT_NAME} C CXX ASM)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -55,27 +55,18 @@ include(cmake/CompilerWarnings.cmake)
 ##########################################################
 
 #! Project main executable source compilation
-add_executable(${PROJECT_NAME} myshell/src/main.cpp
-				myshell/src/options_parser.cpp myshell/include/options_parser.h myshell/include/myshell_errors.h myshell/include/myshell_exceptions.h myshell/src/built_in_parser.cpp myshell/include/built_in_parser.h myshell/src/myshell_commands.cpp myshell/include/myshell_commands.h)
+add_executable(${PROJECT_NAME} src/main.cpp
+				options_parser/options_parser.cpp options_parser/options_parser.h src/cat.cpp src/cat.h)
 
 #! Put path to your project headers
-target_include_directories(${PROJECT_NAME} PRIVATE myshell/include)
+target_include_directories(${PROJECT_NAME} PRIVATE options_parser src)
 
 #! Add external packages
 # options_parser requires boost::program_options library
-find_package(Boost 1.71.0 COMPONENTS program_options system filesystem REQUIRED)
+find_package(Boost 1.71.0 COMPONENTS program_options system REQUIRED)
 target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} Boost::program_options Boost::system Boost::filesystem)
-# add readline library
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
-		${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-find_package(Readline)
-target_include_directories(${PROJECT_NAME} PRIVATE ${Readline_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} ${Readline_LIBRARY})
+target_link_libraries(${PROJECT_NAME} Boost::program_options Boost::system)
 
-#! Additional executables
-add_executable(wildcard_matching examples/regex_matching.cpp)
-add_executable(paths examples/paths.cpp)
 						
 ##########################################################
 # Fixed CMakeLists.txt part 
@@ -83,12 +74,10 @@ add_executable(paths examples/paths.cpp)
 
 INSTALL(PROGRAMS
 		$<TARGET_FILE:${PROJECT_NAME}>	# ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}
-		DESTINATION bin)
+		DESTINATION bin/utils)
 
 # Define ALL_TARGETS variable to use in PVS and Sanitizers
 set(ALL_TARGETS ${PROJECT_NAME})
 
 # Include CMake setup
 include(cmake/main-config.cmake)
-
-add_subdirectory(mycat utils)

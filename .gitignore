@@ -1,4 +1,6 @@
 ### C++ ###
+clion-cmake-build-debug/
+
 # Prerequisites
 *.d
 

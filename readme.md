@@ -1,44 +1,66 @@
-<mark>Template for your README. Remove all unused parts and instructions</mark>
+# Lab work 3: Implementing command-line interpreter
+Authors (team): <a href="https://github.com/bogdanmagometa">Bohdan Mahometa</a>, 
+<a href="https://github.com/viktorpovazhuk">Viktor Povazhuk</a>,
+<a href="https://github.com/shevdan">Bohdan Shevchuk</a>
+<br>
 
-# Lab work <mark>NUMBER</mark>: <mark>SHORT TOPIC</mark>
-Authors (team): <mark>AUTHORS WITH GITHUB LINKS</mark><br>
-Variant: <mark>VARIANT SHOULD BE HERE</mark>
+Currently, the project is expected to work on Linux and MacOS.
+
 ## Prerequisites
 
-<mark>LIST LIBRARIES/TOOLS/OTHER UTILITIES THAT NEED TO BE INSTALLED (E.G. GCC, OPENMP, CMAKE ETC)</mark>
+Tools:
+- cmake, GCC
+
+Libraries:
+- boost collection (`program_options`, `system` and `filesystem` libraries are used in the project)
+- readline (though it should probably be available in Linux and MacOS by default)
 
 ### Compilation
 
-<mark>HOW TO COMPILE YOUR PROGRAM? (RECOMMENDED: ./comile.sh)</mark>
+#### Compile with `./compile.sh`
+
+Execute the following command in the project root directory:
+```bash
+$ ./compile.sh
+```
+
+The executable will be built and copied to `./bin/myshell`.
+
+#### Compile manually with cmake
+
+Run the following in the project root directory:
+```bash
+$ mkdir build
+$ cmake -S . -B build
+$ cmake --build build
+```
+
+The executable will be available by the path `./build/myshell`.
 
 ### Installation
 
-<mark>DESCRIBE THE INSTALLATION PROCESS (USE ./dependencies FOLDER)</mark>
-
-<mark>Note: For Python scripts, You must add `requirenments.txt` 
-file and add your env to the `.gitignore` file!</mark>
+Assuming `./build` is the directory with compiled `myshell` and `./install` is the install directory:
+```bash
+$ cp ./build/myshell ./install/myshell
+$ mkdir -p ./install/utils
+$ cp ./build/utils/mycat ./install/utils/mycat
+```
 
 ### Usage
 
-<mark>PROVIDE AN EXAMPLE OF HOW TO RUN YOUR PROGRAM (IT CAN BE A_flag COMMAND LINE WITH INPUT AND EXPECTED OUTPUT)</mark>
-
-<mark>Note: if your project needs or generates any data, media and so on -- put them
-into the data folder</mark> 
+Assuming the `myshell` executable is available by the path `./bin/myshell`:
+```bash
+$ mkdir -p data
+$ echo "echo hi" > ./data/hi_script.msh
+$ ./bin/myshell ./data/hi_script.msh
+hi
+```
 
 ### Important!
 
-<mark>WHAT ELSE SHOULD WE KNOW ABOUT YOUR WORK? (E.G. KNOWN ISSUES, BUGS, SPECIAL BEHAVIOR ETC)</mark>
-
 ### Results
 
-<mark>DESCRIBE THE RESULTS OF THE WORK YOU DID. WHAT DID YOU LEARN OR FIND INTERESTING?</mark>
+We implemented myshell with built-in commands, mycat and other features.
 
 # Additional tasks
-<mark>IF APPLICABLE, LIST ALL THE EXTRA FEATURES YOU ADDED. PROVIDE DETAILS<mark>
-
-# ATTENTION!
-  
-Additional tasks not listed in the previous paragraph would not be graded.
-
-Be sure to provide a complete list of authors.
-
+Not yet.
