@@ -15,9 +15,12 @@ com_line_built_in::com_line_built_in() {
             ("help,hl,h",
              "Show help message");
 
-    help_map["merrno"] = "Built-in command that returns error code for the last executed command";
-    help_map["mpwd"] = "help for mpwd";
-    help_map["mexport"] = "help for mexport";
+    help_map["merrno"] = "Built-in command that returns error code for the last executed command. Does not take params.";
+    help_map["mpwd"] = "Returns current working directory. Does not rake params.";
+    help_map["mexport"] = "Allows exporting variables to current environment. Takes any number of variables.\nUsage:\nmexport [variable=value] [variable2=value2]";
+    help_map["mexit"] = "Exits myshell with 0 exit code or other, if given as parameter.";
+    help_map["mecho"] = "Prints text passed as parameters to stdout. Supports environmental variables.";
+    help_map["mcd"] = "Changes current working directory. Supports . .. and ~";
 
 }
 
