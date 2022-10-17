@@ -179,10 +179,13 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
             }
             value = var_val;
             args.push_back(value);
-        } else if (value.find('/') != std::string::npos) { // replace if wildcard
+        } else { // replace as wildcard
             fs::path wildc_file_path{value};
             // set searching path
-            fs::path wildc_parent_path = wildc_file_path.parent_path();
+            fs::path wildc_parent_path{"."};
+            if (wildc_file_path.has_parent_path()) {
+                wildc_parent_path = wildc_file_path.parent_path();
+            }
             // check for existence
             if (!fs::exists(wildc_parent_path)) {
                 args.push_back(value);
@@ -212,8 +215,6 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
             } else {
                 args.push_back(value);
             }
-        } else {
-            args.push_back(value);
         }
 
         arg_num += 1;
