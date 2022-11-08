@@ -168,18 +168,22 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     size_t arg_num = 0;
     std::string value;
     while (std::getline(streamData, value, ' ')) {
-        // substitute env vars
-        if (arg_num == 0) {
-            args.push_back(value);
-        } else if (value[0] == '$') { // replace env variables
-            auto var_ptr = getenv(value.substr(1, value.size() - 1).c_str());
+        auto var_begin = value.find_first_of('$') + 1;
+        if (var_begin != std::string::npos) {
+            // replace env variables
+            auto var_ptr = getenv(value.substr(var_begin, value.size() - var_begin).c_str());
             std::string var_val;
             if (var_ptr != nullptr) {
                 var_val = var_ptr;
             }
-            value = var_val;
+            value = value.substr(0, var_begin - 1) + var_val;
+        }
+
+        if (arg_num == 0) {
             args.push_back(value);
-        } else { // replace as wildcard
+        }
+        else {
+            // replace as wildcard
             fs::path wildc_file_path{value};
             // set searching path
             fs::path wildc_parent_path{"."};
