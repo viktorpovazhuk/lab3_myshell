@@ -87,14 +87,16 @@ bool run_builtin_command(std::vector<std::string> &tokens) {
 
         for (const std::string &assignment : assignments) { // TODO: check without '='
             const auto str_eq = assignment.find_first_of('=');
+            if (str_eq == std::string::npos) continue;
 
             std::string varname = assignment.substr(0, str_eq);
             std::string val = assignment.substr(str_eq + 1, assignment.size());
             int status = setenv(varname.c_str(), val.c_str(), 1);
             if (status == -1) {
-                perror("Failed to set PATH variable");
+                perror("Failed to set variable");
                 exit_status = EFAILSET;
             }
+            val = "";
         }
         exit_status = 0;
     } else if(command == "mexit") {
@@ -210,8 +212,10 @@ std::vector<std::string> get_matched_filenames(std::string value) {
 }
 
 std::string expand_variables(std::string value) {
-    auto var_begin = value.find_first_of('$') + 1;
+    auto var_begin = value.find_first_of('$');
     if (var_begin != std::string::npos) {
+        var_begin++;
+
         // replace env variables
         auto var_ptr = getenv(value.substr(var_begin, value.size() - var_begin).c_str());
         std::string var_val;
