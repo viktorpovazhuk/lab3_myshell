@@ -76,7 +76,9 @@ target_link_libraries(${PROJECT_NAME} ${Readline_LIBRARY})
 #! Additional executables
 add_executable(wildcard_matching examples/regex_matching.cpp)
 add_executable(paths examples/paths.cpp)
+
 add_executable(pipes examples/pipes.cpp)
+
 add_executable(pipe_ls_wc examples/pipe_ls_wc.cpp)
 						
 ##########################################################

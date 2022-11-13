@@ -6,36 +6,47 @@
 #include <vector>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sstream>
+#include <cstring>
 
 using cmd_args = std::vector<std::string>;
 
 void close_other_pipes(int cmd_idx, std::vector<int> pipes_fds) {
-    std::cout << "cmd idx in close_other_pipes: " << cmd_idx << '\n';
     for (int i = 0; i < pipes_fds.size(); i++) {
         if (i != 2 * cmd_idx - 1 && i != 2 * cmd_idx) {
-            std::cout << "closed idx: " << i << ", closed fd: " << pipes_fds[i] << '\n';
-            close(pipes_fds[i]);
+            if (close(pipes_fds[i]) == -1) {
+                char* error_info;
+                sprintf(error_info, "command %d, other pipes closing: ", cmd_idx);
+                throw std::runtime_error{strcat(error_info, strerror(errno))};
+            }
         }
     }
     // need std::endl to flush buffer before changing output to pipe end
-    std::cout << "end of close_other_pipes !!!" << std::endl;
 }
 
 void change_command_pipe_streams(int command_idx, int commands_num, std::vector<int> &pipes_fds) {
     if (command_idx != 0) {
         if (dup2(pipes_fds[command_idx*2-1], STDIN_FILENO) == -1) {
-            perror("dup1");
+            char* error_info;
+            sprintf(error_info, "command %d, stdin substitution: ", command_idx);
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
         if (close(pipes_fds[command_idx*2-1]) == -1) {
-            perror("close1");
+            char* error_info;
+            sprintf(error_info, "command %d, stdin pipe end close: ", command_idx);
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
     }
     if (command_idx != commands_num - 1) {
         if (dup2(pipes_fds[command_idx*2], STDOUT_FILENO) == -1) {
-            perror("dup2");
+            char* error_info;
+            sprintf(error_info, "command %d, stdout substitution: ", command_idx);
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
         if (close(pipes_fds[command_idx*2]) == -1) {
-            perror("close2");
+            char* error_info;
+            sprintf(error_info, "command %d, stdout pipe end close: ", command_idx);
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
     }
 }
@@ -51,12 +62,16 @@ void execute_command(std::string &file_for_exec, cmd_args &args) {
     perror("Exec failed");
 }
 
-void exec_com_line(std::vector<cmd_args> &cmds_args) {
+void exec_shell_line(std::vector<cmd_args> &cmds_args) {
     std::vector<int> pipes_fds((cmds_args.size() - 1) * 2);
 
     for (int i = 0; i < pipes_fds.size() / 2; i++) {
         int fds[2];
-        pipe(fds);
+        if (pipe(fds) == -1) {
+            char* error_info;
+            sprintf(error_info, "pipe %d, pipe creation: ", i);
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
+        }
         pipes_fds[i*2] = fds[1];
         pipes_fds[i*2+1] = fds[0];
     }
@@ -85,11 +100,45 @@ void exec_com_line(std::vector<cmd_args> &cmds_args) {
     }
 }
 
-int main() {
-    std::vector<cmd_args> cmds_args;
-    cmds_args.push_back(cmd_args{"echo", "123 456"});
-    cmds_args.push_back(cmd_args{"wc"});
-    cmds_args.push_back(cmd_args{"wc"});
+cmd_args split_cmd_line(std::string &cmd_line) {
+    std::stringstream streamData(cmd_line);
+    std::string value;
+    cmd_args args;
+    while (std::getline(streamData, value, ' ')) {
+        args.push_back(value);
+    }
+    return args;
+}
 
-    exec_com_line(cmds_args);
+std::vector<cmd_args> split_shell_line(std::string &shell_line) {
+    size_t begin = 0, end;
+    std::string delim = " | ";
+    std::vector<std::string> cmd_lines;
+    std::string cmd_line;
+    while ((end = shell_line.find(delim, begin)) != std::string::npos) {
+        cmd_line = shell_line.substr(begin, end - begin);
+
+        cmd_lines.push_back(cmd_line);
+        begin = end + delim.length();
+    }
+    cmd_line = shell_line.substr(begin, end);
+    cmd_lines.push_back(cmd_line);
+
+    std::vector<cmd_args> cmds_args;
+    for (std::string &line: cmd_lines) {
+        cmd_args args = split_cmd_line(line);
+        cmds_args.push_back(args);
+    }
+
+    return cmds_args;
+}
+
+int main() {
+    // TODO:
+
+    std::string command_line = "echo 123 456 | wc | wc";
+
+    std::vector<cmd_args> cmds_args = split_shell_line(command_line);
+
+    exec_shell_line(cmds_args);
 }
