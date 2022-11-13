@@ -148,13 +148,11 @@ bool run_builtin_command(std::vector<std::string> &tokens) {
     return true;
 }
 
-std::vector<std::string> parse_com_line(const std::string &com_line) {
-    std::vector<std::string> args;
-
+std::string remove_spaces(const std::string &com_line) {
     // remove leading spaces and comment
     auto str_begin = com_line.find_first_not_of(' ');
     if (str_begin == std::string::npos) {
-        return args;
+        return "";
     }
     auto str_end = com_line.find_first_of('#');
     if (str_end == std::string::npos) {
@@ -170,59 +168,87 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
         clean_com_line.replace(pos, 2, " ");
     }
 
+    return clean_com_line;
+}
+
+std::vector<std::string> get_matched_filenames(std::string value) {
+    std::vector<std::string> matched_filenames;
+
+    fs::path wildc_file_path{value};
+
+    // set searching path
+    fs::path wildc_parent_path{"."};
+    if (wildc_file_path.has_parent_path()) {
+        wildc_parent_path = wildc_file_path.parent_path();
+    }
+
+    // check for existence
+    if (!fs::exists(wildc_parent_path)) {
+        matched_filenames.push_back(value);
+        return matched_filenames;
+    }
+
+    // iterate over path
+    std::string wildc_filename = wildc_file_path.filename().string();
+    fs::path cur_file_path;
+    for (const auto &entry: fs::directory_iterator(wildc_parent_path)) {
+        // compare file name and regex
+        cur_file_path = entry.path();
+
+        int res;
+        res = fnmatch(wildc_filename.c_str(), cur_file_path.filename().c_str(), FNM_PATHNAME | FNM_PERIOD);
+
+        if (res == 0) {
+            matched_filenames.push_back(cur_file_path.string());
+        } else if (res != FNM_NOMATCH) {
+            std::string error_str{strerror(errno)};
+            throw fnmatch_error{"Error in globbing: " + error_str};
+        }
+    }
+
+    return matched_filenames;
+}
+
+std::string expand_variables(std::string value) {
+    auto var_begin = value.find_first_of('$') + 1;
+    if (var_begin != std::string::npos) {
+        // replace env variables
+        auto var_ptr = getenv(value.substr(var_begin, value.size() - var_begin).c_str());
+        std::string var_val;
+        if (var_ptr != nullptr) {
+            var_val = var_ptr;
+        }
+        value = value.substr(0, var_begin - 1) + var_val;
+    }
+
+    return value;
+}
+
+std::vector<std::string> parse_com_line(const std::string &com_line) {
+    std::vector<std::string> args;
+
+    std::string clean_com_line = remove_spaces(com_line);
+    if (clean_com_line.empty()) {
+        return args;
+    }
+
     // split by space and expand
     std::stringstream streamData(clean_com_line);
     size_t arg_num = 0;
     std::string value;
     while (std::getline(streamData, value, ' ')) {
-        auto var_begin = value.find_first_of('$') + 1;
-        if (var_begin != std::string::npos) {
-            // replace env variables
-            auto var_ptr = getenv(value.substr(var_begin, value.size() - var_begin).c_str());
-            std::string var_val;
-            if (var_ptr != nullptr) {
-                var_val = var_ptr;
-            }
-            value = value.substr(0, var_begin - 1) + var_val;
-        }
+        // expand variable if exists
+        value = expand_variables(value);
 
         if (arg_num == 0) {
             args.push_back(value);
         }
         else {
-            // replace as wildcard
-            fs::path wildc_file_path{value};
-            // set searching path
-            fs::path wildc_parent_path{"."};
-            if (wildc_file_path.has_parent_path()) {
-                wildc_parent_path = wildc_file_path.parent_path();
-            }
-            // check for existence
-            if (!fs::exists(wildc_parent_path)) {
-                args.push_back(value);
-                continue;
-            }
-            // iterate over path
-            std::string wildc_filename = wildc_file_path.filename().string();
-            std::vector<std::string> matched_file_paths;
-            fs::path cur_file_path;
-            for (const auto &entry: fs::directory_iterator(wildc_parent_path)) {
-                // compare file name and regex
-                cur_file_path = entry.path();
-
-                int res;
-                res = fnmatch(wildc_filename.c_str(), cur_file_path.filename().c_str(), FNM_PATHNAME | FNM_PERIOD);
-
-                if (res == 0) {
-                    matched_file_paths.push_back(cur_file_path.string());
-                } else if (res != FNM_NOMATCH) {
-                    std::string error_str{strerror(errno)};
-                    throw fnmatch_error{"Error in globbing: " + error_str};
-                }
-            }
+            // replace with wildcard
+            std::vector<std::string> matched_filenames = get_matched_filenames(value);
             // add to args
-            if (!matched_file_paths.empty()) {
-                args.insert(args.end(), matched_file_paths.begin(), matched_file_paths.end());
+            if (!matched_filenames.empty()) {
+                args.insert(args.end(), matched_filenames.begin(), matched_filenames.end());
             } else {
                 args.push_back(value);
             }
