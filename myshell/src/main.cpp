@@ -20,8 +20,8 @@
 #include <boost/filesystem.hpp>
 
 #include "options_parser.h"
-#include "built_in_parser.h"
-#include "myshell_errors.h"
+#include "builtin_parsers/builtin_parser.h"
+#include "myshell_exit_codes.h"
 #include "myshell_exceptions.h"
 #include "myshell_commands.h"
 
@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
         }
         catch (std::exception &ex) {
             std::cerr << ex.what() << std::endl;
-            exit(Errors::ECLOPTIONS);
+            exit(EXIT_FAILURE);
         }
         std::string script_path = command_line_options->script_path;
 

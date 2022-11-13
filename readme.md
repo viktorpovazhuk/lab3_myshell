@@ -13,7 +13,12 @@ Tools:
 
 Libraries:
 - boost collection (`program_options`, `system` and `filesystem` libraries are used in the project)
-- readline (though it should probably be available in Linux and MacOS by default)
+- readline
+
+Installing readline on Ubuntu:
+```bash
+sudo apt install libreadline-dev
+```
 
 ### Compilation
 
@@ -41,6 +46,7 @@ The executable will be available by the path `./build/myshell`.
 
 Assuming `./build` is the directory with compiled `myshell` and `./install` is the install directory:
 ```bash
+$ mkdir -p ./install
 $ cp ./build/myshell ./install/myshell
 $ mkdir -p ./install/utils
 $ cp ./build/utils/mycat ./install/utils/mycat

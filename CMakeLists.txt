@@ -55,8 +55,19 @@ include(cmake/CompilerWarnings.cmake)
 ##########################################################
 
 #! Project main executable source compilation
-add_executable(${PROJECT_NAME} myshell/src/main.cpp
-				myshell/src/options_parser.cpp myshell/include/options_parser.h myshell/include/myshell_errors.h myshell/include/myshell_exceptions.h myshell/src/built_in_parser.cpp myshell/include/built_in_parser.h myshell/src/myshell_commands.cpp myshell/include/myshell_commands.h)
+file(GLOB builtin_parsers
+		"myshell/src/builtin_parsers/*"
+		"myshell/include/builtin_parsers/*"
+		)
+message("builtin_parsers: ${builtin_parsers}")
+add_executable(${PROJECT_NAME}
+		myshell/src/main.cpp
+		myshell/src/options_parser.cpp myshell/include/options_parser.h
+		myshell/include/myshell_exit_codes.h myshell/include/myshell_exceptions.h
+		myshell/src/builtin_parsers/builtin_parser.cpp myshell/include/builtin_parsers/builtin_parser.h
+		myshell/src/myshell_commands.cpp myshell/include/myshell_commands.h
+		myshell/src/builtin_parsers/merrno_parser.cpp myshell/include/builtin_parsers/merrno_parser.h
+		${builtin_parsers})
 
 #! Put path to your project headers
 target_include_directories(${PROJECT_NAME} PRIVATE myshell/include)

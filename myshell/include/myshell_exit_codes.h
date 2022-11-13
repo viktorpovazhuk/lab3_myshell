@@ -1,8 +1,7 @@
 #ifndef MYCAT_ERRORS_H
 #define MYCAT_ERRORS_H
 
-enum Errors {
-    ECLOPTIONS = 25,
+enum ExitCodes {
     EFAILSET = 26,
     EWRONGPARAMS = 27,
     EFORKFAIL = 28,

@@ -14,115 +14,123 @@
 #include <fnmatch.h>
 #include <utility>
 #include <cstdlib>
+#include <cassert>
 
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <boost/filesystem.hpp>
 
 #include "options_parser.h"
-#include "built_in_parser.h"
-#include "myshell_errors.h"
+#include "builtin_parsers/builtin_parser.h"
+#include "myshell_exit_codes.h"
 #include "myshell_exceptions.h"
 #include "myshell_commands.h"
+#include "builtin_parsers/merrno_parser.h"
+#include "builtin_parsers/mexport_parser.h"
+#include "builtin_parsers/mexit_parser.h"
+#include "builtin_parsers/mpwd_parser.h"
+#include "builtin_parsers/mecho_parser.h"
+#include "builtin_parsers/mcd_parser.h"
+#include "builtin_parsers/dot_parser.h"
 
 namespace fs = boost::filesystem;
 
 static int exit_status = 0;
 
-bool run_builtin_command(std::vector<std::string> &args) {
-    std::unique_ptr<com_line_built_in> commandLineOptions;
+/**
+ * Run builtin command if it is a builtin command.
+ * @param vector of strings - arguments (with command name included)
+ * @return whether the command was a built-in command
+ */
+bool run_builtin_command(std::vector<std::string> &tokens) {
+    std::unique_ptr<builtin_parser_t> builtinParser;
+    const std::string &command = tokens[0];
     try {
-        commandLineOptions = std::make_unique<com_line_built_in>(args.size(), args);
-    }
-    catch (std::exception &ex) {
+        if (command == "merrno") {
+            builtinParser = std::make_unique<merrno_parser_t>();
+        } else if (command == "mexport") {
+            builtinParser = std::make_unique<mexport_parser_t>();
+        } else if (command == "mexit") {
+            builtinParser = std::make_unique<mexit_parser_t>();
+        } else if(command == "mpwd") {
+            builtinParser = std::make_unique<mpwd_parser_t>();
+        } else if(command == "mecho") {
+            builtinParser = std::make_unique<mecho_parser_t>();
+        } else if(command == "mcd") {
+            builtinParser = std::make_unique<mcd_parser_t>();
+        } else if(command == ".") {
+            builtinParser = std::make_unique<dot_parser_t>();
+        } else {
+            return false;
+        }
+        builtinParser->setup_description();
+        std::vector<std::string> arguments(tokens.begin() + 1, tokens.end());
+        builtinParser->parse(arguments);
+    } catch (std::exception &ex) {
         std::cerr << ex.what() << std::endl;
+        exit_status = ExitCodes::EOTHER;
         return true;
     }
 
-
-    std::vector<std::string> parsed_args = commandLineOptions->get_filenames();
-
-
-    if (commandLineOptions->get_help_flag()) {
-        std::cout << commandLineOptions->get_help_msg() << std::endl;
+    if (builtinParser->get_help_flag()) {
+        builtinParser->print_help_message();
+        exit_status = 0;
         return true;
     }
 
-
-    if (parsed_args[0] == "merrno") {
+    if (command == "merrno") {
         std::cout << exit_status << std::endl;
         exit_status = 0;
-        if (parsed_args.size() > 1)
-            exit_status = EWRONGPARAMS;
-    }
+    } else if (command == "mexport") {
+        mexport_parser_t &merrno_parser = dynamic_cast<mexport_parser_t &>(*builtinParser);
+        const std::vector<std::string> &assignments = merrno_parser.get_assignments();
 
-    else if (parsed_args[0] == "mexport") {
-        exit_status = 0;
-        if (parsed_args.size() > 1)
-            for (size_t i = 1; i < parsed_args.size(); ++i) {
-                const auto str_eq = parsed_args[i].find_first_of('=');
+        for (const std::string &assignment : assignments) { // TODO: check without '='
+            const auto str_eq = assignment.find_first_of('=');
 
-                std::string varname = parsed_args[i].substr(0, str_eq);
-                std::string val = parsed_args[i].substr(str_eq + 1, parsed_args[i].size());
-                int status = setenv(varname.c_str(), val.c_str(), 1);
-                if (status == -1) {
-                    perror("Failed to set PATH variable");
-                    exit_status = EFAILSET;
-                }
-
+            std::string varname = assignment.substr(0, str_eq);
+            std::string val = assignment.substr(str_eq + 1, assignment.size());
+            int status = setenv(varname.c_str(), val.c_str(), 1);
+            if (status == -1) {
+                perror("Failed to set PATH variable");
+                exit_status = EFAILSET;
             }
-    }
-    else if(parsed_args[0] == "mexit") {
-        int exit_status = 0;
-        if (parsed_args.size() > 1) {
-            exit_status = atoi(parsed_args[1].c_str());
-        }
-        exit(exit_status);
-    }
-
-    else if(parsed_args[0] == "mpwd") {
-        if (parsed_args.size() > 1) {
-            std::cerr << "mpwd does not take parameters" << std::endl;
-            exit_status = EWRONGPARAMS;
-        }
-        else
-            std::cout << fs::current_path().string() << std::endl;
-    }
-    else if(parsed_args[0] == "mecho") {
-        if(parsed_args.size() > 1) {
-            for(size_t i = 1; i < parsed_args.size() - 1; ++i) {
-                std::cout << parsed_args[i] << " ";
-            }
-            std::cout << parsed_args[parsed_args.size() - 1] << std::endl;
         }
         exit_status = 0;
-    }
-    else if(parsed_args[0] == "mcd") {
-        if(parsed_args.size() != 2) {
-            exit_status = EWRONGPARAMS;
-            std::cerr << "mcd takes only one parameter - path to change directory." << std::endl;
+    } else if(command == "mexit") {
+        mexit_parser_t &mexit_parser = dynamic_cast<mexit_parser_t &>(*builtinParser);
+        exit(mexit_parser.get_code());
+    } else if(command == "mpwd") {
+        std::cout << fs::current_path().string() << std::endl;
+        exit_status = 0;
+    } else if(command == "mecho") {
+        mecho_parser_t &mecho_parser = dynamic_cast<mecho_parser_t &>(*builtinParser);
+        const std::vector<std::string> &texts = mecho_parser.get_texts();
+        for (size_t i = 0; i < texts.size() - 1; ++i) {
+            std::cout << texts[i] << " ";
+        }
+        std::cout << texts.back() << std::endl;
+        exit_status = 0;
+    } else if(command == "mcd") {
+        mcd_parser_t &mcd_parser = dynamic_cast<mcd_parser_t &>(*builtinParser);
+        const std::string &path = mcd_parser.get_path();
+        if (std::filesystem::is_directory(path)) {
+            std::filesystem::current_path(path);
+        }
+        else if(path == "~") {
+            auto path_ptr = getenv("HOME");
+            if (path_ptr != nullptr)
+                std::filesystem::current_path(path_ptr);
         }
         else{
-            if(std::filesystem::is_directory(parsed_args[1])) {
-                std::filesystem::current_path(parsed_args[1]);
-            }
-            else if(parsed_args[1] == "~") {
-                auto path_ptr = getenv("HOME");
-                if (path_ptr != nullptr)
-                    std::filesystem::current_path(path_ptr);
-
-            }
-            else{
-                exit_status = ENOTADIR;
-                std::cerr << "mcd: not a directory: " << parsed_args[1] << std::endl;
-            }
-
+            exit_status = ENOTADIR;
+            std::cerr << "mcd: not a directory: " << path << std::endl;
         }
-    }
-
-    else if(parsed_args[0] == ".") {
-        if(std::filesystem::is_regular_file(parsed_args[1])) {
-            std::ifstream script_file(parsed_args[1]);
+    } else if(command == ".") {
+        dot_parser_t &dot_parser = dynamic_cast<dot_parser_t &>(*builtinParser);
+        const std::string &path = dot_parser.get_path();
+        if(std::filesystem::is_regular_file(path)) {
+            std::ifstream script_file(path);
             try {
                 exec_com_lines(script_file);
             } catch (std::exception &ex) {
@@ -134,10 +142,9 @@ bool run_builtin_command(std::vector<std::string> &args) {
             std::cerr << "coud not find necessary script" << std::endl;
             exit_status = ENOTASCRIPT;
         }
+    } else {
+        assert(false && "This should not execute");
     }
-    else
-        return false;
-
     return true;
 }
 
@@ -232,7 +239,7 @@ void run_outer_command(std::vector<std::string> &args) {
 
     if (pid == -1) {
         perror("Fork failed");
-        exit_status = Errors::EFORKFAIL;
+        exit_status = ExitCodes::EFORKFAIL;
         return;
     }
 
@@ -243,7 +250,7 @@ void run_outer_command(std::vector<std::string> &args) {
             if (status == -1) {
                 if (errno != EINTR) {
                     perror("Unexpected error from waitpid");
-                    exit_status = Errors::EOTHER;
+                    exit_status = ExitCodes::EOTHER;
                     return;
                 }
             } else {
@@ -254,7 +261,7 @@ void run_outer_command(std::vector<std::string> &args) {
         if (WIFEXITED(child_status)) {
             exit_status = WEXITSTATUS(child_status);
         } else if (WIFSIGNALED(child_status)) {
-            exit_status = Errors::ESIGNALFAIL;
+            exit_status = ExitCodes::ESIGNALFAIL;
         }
     } else {
         std::string file_for_exec;
@@ -274,7 +281,7 @@ void run_outer_command(std::vector<std::string> &args) {
 
         execvp(file_for_exec.c_str(), const_cast<char *const *>(args_for_exec.data()));
         perror("Exec failed");
-        exit(Errors::EEXECFAIL);
+        exit(ExitCodes::EEXECFAIL);
     }
 }
 
