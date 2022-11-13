@@ -110,9 +110,10 @@ cmd_args split_cmd_line(std::string &cmd_line) {
     return args;
 }
 
+
 std::vector<cmd_args> split_shell_line(std::string &shell_line) {
     size_t begin = 0, end;
-    std::string delim = " | ";
+    std::string delim = "|";
     std::vector<std::string> cmd_lines;
     std::string cmd_line;
     while ((end = shell_line.find(delim, begin)) != std::string::npos) {
@@ -133,12 +134,48 @@ std::vector<cmd_args> split_shell_line(std::string &shell_line) {
     return cmds_args;
 }
 
+std::vector<std::string> split_cmd_and_redirection(std::string &shell_line) {
+    size_t begin = 0, end;
+    std::string delim = ">";
+    std::vector<std::string> cmd_lines;
+    std::string cmd_line;
+    while ((end = shell_line.find(delim, begin)) != std::string::npos) {
+        if (end != 0) {
+
+        }
+        cmd_line = shell_line.substr(begin, end - begin);
+
+        cmd_lines.push_back(cmd_line);
+        begin = end + delim.length();
+    }
+    cmd_line = shell_line.substr(begin, end);
+    cmd_lines.push_back(cmd_line);
+
+    std::vector<cmd_args> cmds_args;
+    for (std::string &line: cmd_lines) {
+        cmd_args args = split_cmd_line(line);
+        cmds_args.push_back(args);
+    }
+
+    return cmd_lines;
+}
+
+
+
 int main() {
     // TODO:
 
-    std::string command_line = "echo 123 456 | wc | wc";
+    std::string command_line = "echo 123 456 | wc | wc > text 2>&1";
 
-    std::vector<cmd_args> cmds_args = split_shell_line(command_line);
+//    std::vector<std::string> cmd_and_redirection = split_shell_line(command_line, ">");
 
-    exec_shell_line(cmds_args);
+    for (const auto& elm : cmd_and_redirection) {
+        std::cout << elm << std::endl;
+    }
+
+//    std::cout << cmd_and_redirection[0] << std::endl;
+
+//    std::vector<cmd_args> cmds_args = split_shell_line(cmd_and_redirection[0], "|");
+
+//    exec_shell_line(cmds_args);
 }
