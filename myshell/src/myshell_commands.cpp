@@ -39,12 +39,58 @@ using cmd_args = std::vector<std::string>;
 
 static int exit_status = 0;
 
+static int link_fd_to_stdout(int fd) {
+    if (fd == STDOUT_FILENO)
+        return STDOUT_FILENO;
+    int dup_stdout;
+    while (true) {
+        dup_stdout = dup(STDOUT_FILENO);
+        if (dup_stdout == -1) {
+            if (errno != EINTR) {
+                perror("dup");
+                return -1;
+            }
+        } else {
+            break;
+        }
+    }
+
+    while (true) {
+        int status = dup2(fd, STDOUT_FILENO);
+        if (status == -1) {
+            if (errno != EINTR) {
+                perror("dup2");
+                return -1;
+            }
+        } else {
+            break;
+        }
+    }
+    return dup_stdout;
+}
+
+static int undo_link_fd_to_stdout(int old_stdout) {
+    if (old_stdout == STDOUT_FILENO)
+        return 1;
+    while (true) {
+        int status = dup2(old_stdout, STDOUT_FILENO);
+        if (status == -1) {
+            if (errno != EINTR) {
+                perror("dup2");
+                return -1;
+            }
+        } else {
+            return 0;
+        }
+    }
+}
+
 /**
  * Run builtin command if it is a builtin command.
  * @param vector of strings - arguments (with command name included)
  * @return whether the command was a built-in command
  */
-bool run_builtin_command(std::vector<std::string> &tokens) {
+bool run_builtin_command(std::vector<std::string> &tokens, int fd_out) {
     std::unique_ptr<builtin_parser_t> builtinParser;
     const std::string &command = tokens[0];
     try {
@@ -74,9 +120,12 @@ bool run_builtin_command(std::vector<std::string> &tokens) {
         return true;
     }
 
+    int dup_stdout = link_fd_to_stdout(fd_out);
+
     if (builtinParser->get_help_flag()) {
         builtinParser->print_help_message();
         exit_status = 0;
+        undo_link_fd_to_stdout(dup_stdout);
         return true;
     }
 
@@ -149,6 +198,7 @@ bool run_builtin_command(std::vector<std::string> &tokens) {
     } else {
         assert(false && "This should not execute");
     }
+    undo_link_fd_to_stdout(dup_stdout);
     return true;
 }
 
