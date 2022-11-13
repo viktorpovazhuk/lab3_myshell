@@ -67,18 +67,18 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    char *com_line;
-    while ((com_line = readline(get_prompt().c_str())) != nullptr) {
-        std::string com_line_str{com_line};
-        if (!com_line_str.empty()) {
-            add_history(com_line);
+    char *shell_line;
+    while ((shell_line = readline(get_prompt().c_str())) != nullptr) {
+        std::string shell_line_str{shell_line};
+        if (!shell_line_str.empty()) {
+            add_history(shell_line);
         }
         try {
-            exec_com_line(com_line);
+            exec_shell_line(shell_line_str);
         } catch (std::exception &ex) {
             std::cerr << ex.what() << '\n';
         }
-        free(com_line);
+        free(shell_line);
     }
 
     return 0;

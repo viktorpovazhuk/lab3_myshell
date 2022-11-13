@@ -8,12 +8,13 @@
 #include <sys/wait.h>
 #include <sstream>
 #include <cstring>
+#include <fcntl.h>
 
 using cmd_args = std::vector<std::string>;
 
-void close_other_pipes(int cmd_idx, std::vector<int> pipes_fds) {
+void close_other_pipes(int cmd_idx, int commands_num, std::vector<int> pipes_fds) {
     for (int i = 0; i < pipes_fds.size(); i++) {
-        if (i != 2 * cmd_idx - 1 && i != 2 * cmd_idx) {
+        if (i != 2 * cmd_idx - 1 && i != 2 * cmd_idx && !(cmd_idx == 0 && i == pipes_fds.size() - 2) && !(cmd_idx == commands_num - 1 && i == pipes_fds.size() - 1)) {
             if (close(pipes_fds[i]) == -1) {
                 char* error_info;
                 sprintf(error_info, "command %d, other pipes closing: ", cmd_idx);
@@ -24,7 +25,7 @@ void close_other_pipes(int cmd_idx, std::vector<int> pipes_fds) {
     // need std::endl to flush buffer before changing output to pipe end
 }
 
-void change_command_pipe_streams(int command_idx, int commands_num, std::vector<int> &pipes_fds) {
+void change_command_streams(int command_idx, int commands_num, std::vector<int> &pipes_fds) {
     if (command_idx != 0) {
         if (dup2(pipes_fds[command_idx*2-1], STDIN_FILENO) == -1) {
             char* error_info;
@@ -37,6 +38,19 @@ void change_command_pipe_streams(int command_idx, int commands_num, std::vector<
             throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
     }
+    else if (command_idx == 0 && pipes_fds[pipes_fds.size() - 2] != STDIN_FILENO) {
+        int input_fd = pipes_fds[pipes_fds.size() - 2];
+        if (dup2(input_fd, STDIN_FILENO) == -1) {
+            char* error_info;
+            sprintf(error_info, "command 0, stdin substitution: ");
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
+        }
+        if (close(input_fd) == -1) {
+            char* error_info;
+            sprintf(error_info, "command 0, stdin pipe end close: ");
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
+        }
+    }
     if (command_idx != commands_num - 1) {
         if (dup2(pipes_fds[command_idx*2], STDOUT_FILENO) == -1) {
             char* error_info;
@@ -46,6 +60,19 @@ void change_command_pipe_streams(int command_idx, int commands_num, std::vector<
         if (close(pipes_fds[command_idx*2]) == -1) {
             char* error_info;
             sprintf(error_info, "command %d, stdout pipe end close: ", command_idx);
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
+        }
+    }
+    else if (command_idx == commands_num - 1 && pipes_fds[pipes_fds.size() - 1] != STDOUT_FILENO) {
+        int output_fd = pipes_fds[pipes_fds.size() - 1];
+        if (dup2(output_fd, STDOUT_FILENO) == -1) {
+            char* error_info;
+            sprintf(error_info, "last command, stdout substitution: ");
+            throw std::runtime_error{strcat(error_info, strerror(errno))};
+        }
+        if (close(output_fd) == -1) {
+            char* error_info;
+            sprintf(error_info, "last command, stdout pipe end close: ");
             throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
     }
@@ -62,8 +89,9 @@ void execute_command(std::string &file_for_exec, cmd_args &args) {
     perror("Exec failed");
 }
 
-void exec_shell_line(std::vector<cmd_args> &cmds_args) {
+void exec_piped_commands(std::vector<cmd_args> &cmds_args, int input_fd, int output_fd) {
     std::vector<int> pipes_fds((cmds_args.size() - 1) * 2);
+    int commands_num = cmds_args.size();
 
     for (int i = 0; i < pipes_fds.size() / 2; i++) {
         int fds[2];
@@ -75,14 +103,16 @@ void exec_shell_line(std::vector<cmd_args> &cmds_args) {
         pipes_fds[i*2] = fds[1];
         pipes_fds[i*2+1] = fds[0];
     }
+    pipes_fds.push_back(input_fd);
+    pipes_fds.push_back(output_fd);
 
-    for (int cmd_idx = 0; cmd_idx < cmds_args.size(); cmd_idx++) {
+    for (int cmd_idx = 0; cmd_idx < commands_num; cmd_idx++) {
         pid_t pid = fork();
 
         if (pid == 0) {
-            close_other_pipes(cmd_idx, pipes_fds);
+            close_other_pipes(cmd_idx, commands_num, pipes_fds);
 
-            change_command_pipe_streams(cmd_idx, cmds_args.size(), pipes_fds);
+            change_command_streams(cmd_idx, commands_num, pipes_fds);
 
             std::string &file_for_exec = cmds_args[cmd_idx][0];
             cmd_args &args = cmds_args[cmd_idx];
@@ -91,9 +121,9 @@ void exec_shell_line(std::vector<cmd_args> &cmds_args) {
         }
     }
 
-    close_other_pipes(-1, pipes_fds);
+    close_other_pipes(-1, commands_num, pipes_fds);
 
-    for (int i = 0; i < cmds_args.size(); i++) {
+    for (int i = 0; i < commands_num; i++) {
         if (waitpid(-1, nullptr, 0) == -1) {
             perror("wait");
         }
@@ -136,9 +166,12 @@ std::vector<cmd_args> split_shell_line(std::string &shell_line) {
 int main() {
     // TODO:
 
-    std::string command_line = "echo 123 456 | wc | wc";
+    std::string command_line = "cat | wc | wc";
 
     std::vector<cmd_args> cmds_args = split_shell_line(command_line);
 
-    exec_shell_line(cmds_args);
+    int input_fd = open("intest", O_RDONLY);
+    int output_fd = STDOUT_FILENO; // open("outtest", O_WRONLY);
+
+    exec_piped_commands(cmds_args, input_fd, output_fd);
 }
