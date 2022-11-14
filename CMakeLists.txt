@@ -89,9 +89,9 @@ add_executable(wildcard_matching examples/regex_matching.cpp)
 add_executable(paths examples/paths.cpp)
 add_executable(pipes examples/pipes.cpp)
 add_executable(pipe_ls_wc examples/pipe_ls_wc.cpp)
-						
+
 ##########################################################
-# Fixed CMakeLists.txt part 
+# Fixed CMakeLists.txt part
 ##########################################################
 
 INSTALL(PROGRAMS

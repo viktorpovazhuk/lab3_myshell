@@ -40,50 +40,75 @@ using cmd_args = std::vector<std::string>;
 
 static int exit_status = 0;
 
-static int link_fd_to_stdout(int fd) {
-    if (fd == STDOUT_FILENO)
-        return STDOUT_FILENO;
-    int dup_stdout;
+int close_wrapper(int fd) {
+    int status;
     while (true) {
-        dup_stdout = dup(STDOUT_FILENO);
-        if (dup_stdout == -1) {
+        status = close(fd);
+        if (status == -1) {
+            if (errno != EINTR) {
+                perror("close");
+                return -1;
+            }
+        }
+        else return status;
+    }
+}
+
+
+int open_wrapper(const char *pathname, int flags) {
+    int fd;
+    while (true) {
+        fd = open(pathname, flags);
+        if (fd == -1) {
+            if (errno != EINTR) {
+                perror("open");
+                return -1;
+            }
+        }
+        else return fd;
+    }
+}
+
+int dup_wrapper(int oldfd) {
+    int fd;
+    while (true) {
+        fd = dup(oldfd);
+        if (fd == -1) {
             if (errno != EINTR) {
                 perror("dup");
                 return -1;
             }
-        } else {
-            break;
         }
+        else return fd;
     }
+}
 
+int dup2_wrapper(int oldfd, int newfd) {
+    int fd;
     while (true) {
-        int status = dup2(fd, STDOUT_FILENO);
-        if (status == -1) {
+        fd = dup2(oldfd, newfd);
+        if (fd == -1) {
             if (errno != EINTR) {
-                perror("dup2");
+                perror("dup");
                 return -1;
             }
-        } else {
-            break;
         }
+        else return fd;
     }
+}
+
+static int link_fd_to_stdout(int fd) {
+    if (fd == STDOUT_FILENO)
+        return STDOUT_FILENO;
+    int dup_stdout = dup_wrapper(STDOUT_FILENO);
+    dup2_wrapper(fd, STDOUT_FILENO);
     return dup_stdout;
 }
 
 static int undo_link_fd_to_stdout(int old_stdout) {
     if (old_stdout == STDOUT_FILENO)
         return 1;
-    while (true) {
-        int status = dup2(old_stdout, STDOUT_FILENO);
-        if (status == -1) {
-            if (errno != EINTR) {
-                perror("dup2");
-                return -1;
-            }
-        } else {
-            return 0;
-        }
-    }
+    return dup2_wrapper(old_stdout, STDOUT_FILENO);
 }
 
 /**
@@ -425,7 +450,7 @@ void run_outer_command(std::vector<std::string> &args) {
 void close_other_pipes(int cmd_idx, int commands_num, std::vector<int> pipes_fds) {
     for (int i = 0; i < pipes_fds.size(); i++) {
         if (i != 2 * cmd_idx - 1 && i != 2 * cmd_idx && !(cmd_idx == 0 && i == pipes_fds.size() - 2) && !(cmd_idx == commands_num - 1 && i == pipes_fds.size() - 1)) {
-            if (close(pipes_fds[i]) == -1) {
+            if (close_wrapper(pipes_fds[i]) == -1) {
                 char* error_info;
                 sprintf(error_info, "command %d, other pipes closing: ", cmd_idx);
                 throw std::runtime_error{strcat(error_info, strerror(errno))};
@@ -437,12 +462,12 @@ void close_other_pipes(int cmd_idx, int commands_num, std::vector<int> pipes_fds
 
 void change_command_streams(int command_idx, int commands_num, std::vector<int> &pipes_fds) {
     if (command_idx != 0) {
-        if (dup2(pipes_fds[command_idx*2-1], STDIN_FILENO) == -1) {
+        if (dup2_wrapper(pipes_fds[command_idx*2-1], STDIN_FILENO) == -1) {
             char* error_info;
             sprintf(error_info, "command %d, stdin substitution: ", command_idx);
             throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
-        if (close(pipes_fds[command_idx*2-1]) == -1) {
+        if (close_wrapper(pipes_fds[command_idx*2-1]) == -1) {
             char* error_info;
             sprintf(error_info, "command %d, stdin pipe end close: ", command_idx);
             throw std::runtime_error{strcat(error_info, strerror(errno))};
@@ -450,24 +475,24 @@ void change_command_streams(int command_idx, int commands_num, std::vector<int> 
     }
     else if (command_idx == 0 && pipes_fds[pipes_fds.size() - 2] != STDIN_FILENO) {
         int input_fd = pipes_fds[pipes_fds.size() - 2];
-        if (dup2(input_fd, STDIN_FILENO) == -1) {
+        if (dup2_wrapper(input_fd, STDIN_FILENO) == -1) {
             char* error_info;
             sprintf(error_info, "command 0, stdin substitution: ");
             throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
-        if (close(input_fd) == -1) {
+        if (close_wrapper(input_fd) == -1) {
             char* error_info;
             sprintf(error_info, "command 0, stdin pipe end close: ");
             throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
     }
     if (command_idx != commands_num - 1) {
-        if (dup2(pipes_fds[command_idx*2], STDOUT_FILENO) == -1) {
+        if (dup2_wrapper(pipes_fds[command_idx*2], STDOUT_FILENO) == -1) {
             char* error_info;
             sprintf(error_info, "command %d, stdout substitution: ", command_idx);
             throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
-        if (close(pipes_fds[command_idx*2]) == -1) {
+        if (close_wrapper(pipes_fds[command_idx*2]) == -1) {
             char* error_info;
             sprintf(error_info, "command %d, stdout pipe end close: ", command_idx);
             throw std::runtime_error{strcat(error_info, strerror(errno))};
@@ -475,12 +500,12 @@ void change_command_streams(int command_idx, int commands_num, std::vector<int> 
     }
     else if (command_idx == commands_num - 1 && pipes_fds[pipes_fds.size() - 1] != STDOUT_FILENO) {
         int output_fd = pipes_fds[pipes_fds.size() - 1];
-        if (dup2(output_fd, STDOUT_FILENO) == -1) {
+        if (dup2_wrapper(output_fd, STDOUT_FILENO) == -1) {
             char* error_info;
             sprintf(error_info, "last command, stdout substitution: ");
             throw std::runtime_error{strcat(error_info, strerror(errno))};
         }
-        if (close(output_fd) == -1) {
+        if (close_wrapper(output_fd) == -1) {
             char* error_info;
             sprintf(error_info, "last command, stdout pipe end close: ");
             throw std::runtime_error{strcat(error_info, strerror(errno))};
@@ -603,7 +628,7 @@ int get_fd(std::string fd) {
     if (fd == "0" || fd == "1" || fd == "2")
         return stoi(fd);
     while (true) {
-        int cur_fd =  open(fd.c_str(), O_RDWR);
+        int cur_fd =  open_wrapper(fd.c_str(), O_RDWR);
         if (cur_fd == -1) {
             if (errno != EINTR) {
                 perror("fd error");
@@ -621,7 +646,7 @@ void exec_shell_line(std::string &shell_line) {
     std::vector<pid_t> child_pids;
     int fdin, fdout, errfd;
 
-    int dup_stdout = dup(STDOUT_FILENO);
+    int dup_stdout = dup_wrapper(STDOUT_FILENO);
     int cnt = 0;
     while (cmds_args.size() > 1) {
         cmd_args cur_command_line = cmds_args.back(); cmds_args.pop_back();
@@ -636,19 +661,26 @@ void exec_shell_line(std::string &shell_line) {
 //            pfd[1] = fdout;
         pid_t child_pid = fork();
         if (child_pid == 0) {
-            close(dup_stdout);
-            close(pfd[1]);
-            dup2(pfd[0], STDIN_FILENO);
-            close(pfd[0]);
+            close_wrapper(dup_stdout);
+            close_wrapper(pfd[1]);
+            dup2_wrapper(pfd[0], STDIN_FILENO);
+            close_wrapper(pfd[0]);
 
 //            ...configure redirections
 
             execute_command(cur_command_line[0], cur_command_line);
         }
         child_pids.push_back(child_pid);
-        close(pfd[0]);
-        dup2(pfd[1], STDOUT_FILENO);
-        close(pfd[1]);
+        if (close_wrapper(pfd[0]) == -1) {
+            perror("close");
+            exit(-1);
+        }
+        dup2_wrapper(pfd[1], STDOUT_FILENO);
+
+        if(close_wrapper(pfd[1]) == -1) {
+            perror("close");
+            exit(-1);
+        }
     }
     auto cur_command_line = cmds_args.back();
 //    errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
@@ -662,14 +694,17 @@ void exec_shell_line(std::string &shell_line) {
 //        std::cout << "CUR CMD FD: " << errfd << "  " << fdout << "  " << fdin << std::endl;
         pid_t child_pid = fork();
         if (child_pid == 0) {
-            close(dup_stdout);
+            close_wrapper(dup_stdout);
 //            ...configure redirections
             execute_command(cur_command_line[0], cur_command_line);
         }
         child_pids.push_back(child_pid);
     }
-    dup2(dup_stdout, STDOUT_FILENO);
-    close(dup_stdout);
+    dup2_wrapper(dup_stdout, STDOUT_FILENO);
+    if (close_wrapper(dup_stdout) == -1) {
+        perror("close");
+        exit(-1);
+    }
 
     for (pid_t child_pid : child_pids) {
         int child_status;
