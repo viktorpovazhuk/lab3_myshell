@@ -13,7 +13,7 @@ void run_outer_command(std::vector<std::string> &args);
 
 void exec_shell_line(std::string &shell_line);
 
-void exec_com_lines(std::basic_istream<char> &com_stream);
+void exec_shell_lines(std::basic_istream<char> &com_stream);
 
 std::string get_prompt();
 

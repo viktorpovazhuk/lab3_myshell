@@ -20,6 +20,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <boost/filesystem.hpp>
+#include <unordered_set>
 
 #include "options_parser.h"
 #include "builtin_parsers/builtin_parser.h"
@@ -185,7 +186,7 @@ bool run_builtin_command(std::vector<std::string> &tokens, int fd_out) {
         if(std::filesystem::is_regular_file(path)) {
             std::ifstream script_file(path);
             try {
-                exec_com_lines(script_file);
+                exec_shell_lines(script_file);
             } catch (std::exception &ex) {
                 std::cerr << ex.what() << '\n';
                 exit_status = EXIT_FAILURE;
@@ -280,8 +281,10 @@ std::string expand_variables(std::string value) {
     return value;
 }
 
+
 std::vector<std::string> parse_com_line(const std::string &com_line) {
     std::vector<std::string> args;
+    std::string fd = "1", errfd = "2", fdin = "0";
 
     std::string clean_com_line = remove_spaces(com_line);
     if (clean_com_line.empty()) {
@@ -292,7 +295,53 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
     std::stringstream streamData(clean_com_line);
     size_t arg_num = 0;
     std::string value;
+    bool get_next_file_fd = false, get_next_file_errfd = false, get_next_fdin = false;
     while (std::getline(streamData, value, ' ')) {
+
+        size_t begin = 0, end;
+        std::string delim = ">";
+
+        if ((value.find("<", begin)) != std::string::npos) {
+            if (arg_num)
+                continue;
+            get_next_fdin = true;
+            continue;
+        }
+
+        if ((value.find(">", begin)) != std::string::npos) {
+            if (value == "&>") {
+                get_next_file_fd = true;
+                get_next_file_errfd = true;
+            }
+            if (value == "2>&1" || value == "2&>1")
+                errfd = fd;
+            if (value == "1>&2" || value == "1&>2")
+                fd = errfd;
+            if (value == ">" || value == "1>")
+                get_next_file_fd = true;
+            if (value == "2>")
+                get_next_file_errfd = true;
+            continue;
+        }
+
+        if (get_next_file_errfd || get_next_file_fd) {
+            if (get_next_file_errfd) {
+                errfd = value;
+                get_next_file_errfd = false;
+            }
+            if (get_next_file_fd) {
+                fd = value;
+                get_next_file_fd = false;
+            }
+            continue;
+        }
+
+        if (get_next_fdin) {
+            fdin = value;
+            get_next_fdin = false;
+            continue;
+        }
+
         // expand variable if exists
         value = expand_variables(value);
 
@@ -312,6 +361,12 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
 
         arg_num += 1;
     }
+
+
+    args.push_back(fdin);
+    args.push_back(fd);
+    args.push_back(errfd);
+
 
     return args;
 }
@@ -485,6 +540,30 @@ void exec_piped_commands(std::vector<cmd_args> &cmds_args, int input_fd, int out
     }
 }
 
+//std::vector<std::string> split_redirections(std::string &shell_line) {
+//    size_t begin = 0, end;
+//    std::string delim = " | ";
+//    std::vector<std::string> cmd_lines;
+//    std::string cmd_line;
+//    while ((end = shell_line.find(delim, begin)) != std::string::npos) {
+//        cmd_line = shell_line.substr(begin, end - begin);
+//
+//        cmd_lines.push_back(cmd_line);
+//        begin = end + delim.length();
+//    }
+//    cmd_line = shell_line.substr(begin, end);
+//    cmd_lines.push_back(cmd_line);
+//
+//    std::vector<cmd_args> cmds_args;
+//    for (const std::string &line: cmd_lines) {
+//        std::cout << " cmd_line:" << line << ": new" << std::endl;
+//        cmd_args args = parse_com_line(line);
+//        cmds_args.push_back(args);
+//    }
+//
+//    return cmds_args;
+//}
+
 std::vector<cmd_args> split_shell_line(std::string &shell_line) {
     size_t begin = 0, end;
     std::string delim = " | ";
@@ -500,32 +579,105 @@ std::vector<cmd_args> split_shell_line(std::string &shell_line) {
     cmd_lines.push_back(cmd_line);
 
     std::vector<cmd_args> cmds_args;
-    for (std::string &line: cmd_lines) {
+    for (const std::string &line: cmd_lines) {
         cmd_args args = parse_com_line(line);
+//        for (const auto& arg: args) {
+//            std::cout << "arg:" << arg << ":arg ";
+//        }
         cmds_args.push_back(args);
     }
 
     return cmds_args;
 }
 
+/**
+ * @param string
+ * @returns whether the passed string is the name of the builtin command.
+ */
+static bool check_builtin(const std::string &s) {
+    std::unordered_set<std::string> builtins{"merrno", "mexport", "mexit", "mpwd", "mecho", "mcd", "."};
+    return builtins.count(s);
+}
+
+int get_fd(std::string fd) {
+    if (fd == "0" || fd == "1" || fd == "2")
+        return stoi(fd);
+    while (true) {
+        int cur_fd =  open(fd.c_str(), O_RDWR);
+        if (cur_fd == -1) {
+            if (errno != EINTR) {
+                perror("fd error");
+                return -1;
+            }
+        } else {
+            return cur_fd;
+        }
+    }
+}
+
 void exec_shell_line(std::string &shell_line) {
     std::vector<cmd_args> cmds_args = split_shell_line(shell_line);
 
-    int input_fd = open("intest", O_RDONLY);
-    int output_fd = STDOUT_FILENO; // open("outtest", O_WRONLY);
+    std::vector<pid_t> child_pids;
+    int fdin, fdout, errfd;
 
-    exec_piped_commands(cmds_args, input_fd, output_fd);
+    int dup_stdout = dup(STDOUT_FILENO);
+    int cnt = 0;
+    while (cmds_args.size() > 1) {
+        cmd_args cur_command_line = cmds_args.back(); cmds_args.pop_back();
 
-//    if (args.empty()) {
-//        return;
-//    }
-//    bool is_builtin = run_builtin_command(args);
-//    if (!is_builtin) {
-//        run_outer_command(args);
-//    }
+//        errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+//        fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+//        fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+//        std::cout << "CUR CMD FD: " << errfd << "  " << fdout << "  " << fdin << std::endl;
+        int pfd[2];
+        pipe(pfd);
+//        if (!cnt)
+//            pfd[1] = fdout;
+        pid_t child_pid = fork();
+        if (child_pid == 0) {
+            close(dup_stdout);
+            close(pfd[1]);
+            dup2(pfd[0], STDIN_FILENO);
+            close(pfd[0]);
+
+//            ...configure redirections
+
+            execute_command(cur_command_line[0], cur_command_line);
+        }
+        child_pids.push_back(child_pid);
+        close(pfd[0]);
+        dup2(pfd[1], STDOUT_FILENO);
+        close(pfd[1]);
+    }
+    auto cur_command_line = cmds_args.back();
+//    errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+//    fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+//    fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+    if (check_builtin(cur_command_line[0])) {
+//        ...configure redirections
+        run_builtin_command(cur_command_line, STDIN_FILENO);
+    } else {
+
+//        std::cout << "CUR CMD FD: " << errfd << "  " << fdout << "  " << fdin << std::endl;
+        pid_t child_pid = fork();
+        if (child_pid == 0) {
+            close(dup_stdout);
+//            ...configure redirections
+            execute_command(cur_command_line[0], cur_command_line);
+        }
+        child_pids.push_back(child_pid);
+    }
+    dup2(dup_stdout, STDOUT_FILENO);
+    close(dup_stdout);
+
+    for (pid_t child_pid : child_pids) {
+        int child_status;
+        waitpid(child_pid, &child_status, 0);
+    }
 }
 
-void exec_com_lines(std::basic_istream<char> &com_stream) {
+void exec_shell_lines(std::basic_istream<char> &com_stream) {
     std::string com_line;
     // don't use cin: 1. can't use later, 2. reads till ' '
     while (std::getline(com_stream, com_line)) {
