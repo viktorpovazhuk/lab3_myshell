@@ -40,9 +40,6 @@ using cmd_args = std::vector<std::string>;
 
 static int exit_status = 0;
 
-int waitpid_wrapper(pid_t pid, int *status, int options) {
-
-}
 
 int close_wrapper(int fd) {
     int status;
@@ -348,7 +345,7 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
         }
 
         if ((value.find(">", begin)) != std::string::npos) {
-            if (value == "&>") {
+            if (value == "&>" || value == ">&") {
                 get_next_file_fd = true;
                 get_next_file_errfd = true;
             }
@@ -638,11 +635,11 @@ static bool check_builtin(const std::string &s) {
     return builtins.count(s);
 }
 
-int get_fd(std::string fd) {
+int get_fd(std::string fd, int flag) {
     if (fd == "0" || fd == "1" || fd == "2")
         return stoi(fd);
     while (true) {
-        int cur_fd =  open_wrapper(fd.c_str(), O_WRONLY);
+        int cur_fd =  open_wrapper(fd.c_str(), flag);
         if (cur_fd == -1) {
             if (errno != EINTR) {
                 perror("fd error");
@@ -704,9 +701,9 @@ void exec_shell_line(std::string &shell_line) {
     while (cmds_args.size() > 1) {
         cmd_args cur_command_line = cmds_args.back(); cmds_args.pop_back();
 
-        errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-        fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-        fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+        errfd = get_fd(cur_command_line.back(), O_WRONLY); cur_command_line.pop_back();
+        fdout = get_fd(cur_command_line.back(), O_WRONLY); cur_command_line.pop_back();
+        fdin = get_fd(cur_command_line.back(), O_RDONLY); cur_command_line.pop_back();
         if (!cnt) {
             used_fdout = fdout;
             used_errfd = errfd;
@@ -718,11 +715,17 @@ void exec_shell_line(std::string &shell_line) {
 
         pid_t child_pid = fork();
         if (child_pid == 0) {
+            if (check_builtin(cur_command_line[0])) {
+//        ...configure redirections
+                std::cerr << "builitn command in the middle of the pipe" << std::endl;
+                exit(EXIT_FAILURE);
+            }
 
             dup2_wrapper(pfd[0], STDIN_FILENO);
 
 //            ...configure redirections
             dup2_wrapper(used_fdout, 1);
+            dup2_wrapper(used_errfd, 2);
 
             execute_command(cur_command_line[0], cur_command_line);
         }
@@ -739,9 +742,9 @@ void exec_shell_line(std::string &shell_line) {
         }
     }
     auto cur_command_line = cmds_args.back();
-    errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-    fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-    fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+    errfd = get_fd(cur_command_line.back(), O_WRONLY); cur_command_line.pop_back();
+    fdout = get_fd(cur_command_line.back(), O_WRONLY); cur_command_line.pop_back();
+    fdin = get_fd(cur_command_line.back(), O_RDONLY); cur_command_line.pop_back();
 
     if (used_fdout == -100)
         used_fdout =fdout;
@@ -750,6 +753,7 @@ void exec_shell_line(std::string &shell_line) {
     used_fdin = fdin;
     if (check_builtin(cur_command_line[0])) {
 //        ...configure redirections
+        dup2_wrapper(used_errfd, 2);
         run_builtin_command(cur_command_line, used_fdout);
     } else {
 
@@ -758,6 +762,9 @@ void exec_shell_line(std::string &shell_line) {
         if (child_pid == 0) {
 //            ...configure redirections
             dup2_wrapper(used_fdout, 1);
+            dup2_wrapper(used_fdin, 0);
+            dup2_wrapper(used_errfd, 2);
+
             execute_command(cur_command_line[0], cur_command_line);
         }
         child_pids.push_back(child_pid);
