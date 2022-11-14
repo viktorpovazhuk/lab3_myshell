@@ -620,9 +620,9 @@ std::vector<cmd_args> split_shell_line(std::string &shell_line) {
     std::vector<cmd_args> cmds_args;
     for (const std::string &line: cmd_lines) {
         cmd_args args = parse_com_line(line);
-//        for (const auto& arg: args) {
-//            std::cout << "arg:" << arg << ":arg ";
-//        }
+        if (args.empty()) {
+            continue;
+        }
         cmds_args.push_back(args);
     }
 
@@ -693,6 +693,9 @@ void exec_shell_line(std::string &shell_line) {
             break;
     }
     std::vector<cmd_args> cmds_args = split_shell_line(shell_line);
+    if (cmds_args.empty()) {
+        return;
+    }
 
     std::vector<pid_t> child_pids;
     int fdin, fdout, errfd, used_fdin = -100, used_fdout = -100, used_errfd = -100;
@@ -744,7 +747,7 @@ void exec_shell_line(std::string &shell_line) {
     fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
 
     if (used_fdout == -100)
-        used_fdout =fdout;
+        used_fdout = fdout;
     if (used_errfd == -100)
         used_errfd = errfd;
     used_fdin = fdin;
