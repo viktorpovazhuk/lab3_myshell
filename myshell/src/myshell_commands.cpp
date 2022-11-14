@@ -640,7 +640,44 @@ int get_fd(std::string fd) {
     }
 }
 
+/**
+ * Remove " &" at the end.
+ * @return
+ *      -1 if " &" occures not at the end
+ *      0 if " &" does not occur in the string
+ *      1 if " &" occurs at the end of the shell line
+ */
+int strip_ampersand(std::string &shell_line) {
+    while (!shell_line.empty() && isspace(shell_line.back())) {
+        shell_line.pop_back();
+    }
+    size_t pos = shell_line.find(" &");
+    if (pos == std::string::npos) {
+        // " &" does not occur in the string
+        return 0;
+    }
+    if (pos == shell_line.size() - 2) {
+        shell_line.erase(pos);
+        // " &" occurs at the end of the shell line
+        return 1;
+    }
+    // " &" occurs at the end of the shell line
+    return -1;
+}
+
 void exec_shell_line(std::string &shell_line) {
+    bool must_wait;
+    switch (strip_ampersand(shell_line)) {
+        case -1:
+            std::cerr << "Wrong use of &: should be on redirections" << std::endl;
+            return;
+        case 0:
+            must_wait = true;
+            break;
+        case 1:
+            must_wait = false;
+            break;
+    }
     std::vector<cmd_args> cmds_args = split_shell_line(shell_line);
 
     std::vector<pid_t> child_pids;
@@ -706,6 +743,9 @@ void exec_shell_line(std::string &shell_line) {
         exit(-1);
     }
 
+    if (!must_wait) {
+        return;
+    }
     for (pid_t child_pid : child_pids) {
         int child_status;
         waitpid(child_pid, &child_status, 0);

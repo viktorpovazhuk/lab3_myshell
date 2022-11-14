@@ -28,6 +28,7 @@
 namespace fs = boost::filesystem;
 
 int main(int argc, char *argv[]) {
+    signal(SIGCHLD, SIG_IGN);
     if (argc > 1) {
         std::unique_ptr<command_line_options_t> command_line_options;
         try {
