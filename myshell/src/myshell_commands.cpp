@@ -40,6 +40,10 @@ using cmd_args = std::vector<std::string>;
 
 static int exit_status = 0;
 
+int waitpid_wrapper(pid_t pid, int *status, int options) {
+
+}
+
 int close_wrapper(int fd) {
     int status;
     while (true) {
@@ -95,6 +99,16 @@ int dup2_wrapper(int oldfd, int newfd) {
         }
         else return fd;
     }
+}
+
+int pipe_wrapper(int pipefd[2], int flag) {
+    int status = pipe(pipefd);
+    if (status == 0){
+        fcntl(pipefd[0], flag, FD_CLOEXEC);
+        fcntl(pipefd[1], flag, FD_CLOEXEC);
+    }
+    return status;
+
 }
 
 static int link_fd_to_stdout(int fd) {
@@ -628,7 +642,7 @@ int get_fd(std::string fd) {
     if (fd == "0" || fd == "1" || fd == "2")
         return stoi(fd);
     while (true) {
-        int cur_fd =  open_wrapper(fd.c_str(), O_RDWR);
+        int cur_fd =  open_wrapper(fd.c_str(), O_WRONLY);
         if (cur_fd == -1) {
             if (errno != EINTR) {
                 perror("fd error");
@@ -681,9 +695,11 @@ void exec_shell_line(std::string &shell_line) {
     std::vector<cmd_args> cmds_args = split_shell_line(shell_line);
 
     std::vector<pid_t> child_pids;
-    int fdin, fdout, errfd;
+    int fdin, fdout, errfd, used_fdin, used_fdout, used_errfd;
 
     int dup_stdout = dup_wrapper(STDOUT_FILENO);
+    int dup_stdin = dup_wrapper(STDIN_FILENO);
+    int dup_stderr = dup_wrapper(STDERR_FILENO);
     int cnt = 0;
     while (cmds_args.size() > 1) {
         cmd_args cur_command_line = cmds_args.back(); cmds_args.pop_back();
@@ -691,19 +707,22 @@ void exec_shell_line(std::string &shell_line) {
         errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
         fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
         fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+        if (!cnt) {
+            used_fdout = fdout;
+            used_errfd = errfd;
+        }
+        cnt++;
 //        std::cout << "CUR CMD FD: " << errfd << "  " << fdout << "  " << fdin << std::endl;
         int pfd[2];
-        pipe(pfd);
-//        if (!cnt)
-//            pfd[1] = fdout;
+        pipe_wrapper(pfd, F_SETFD);
+
         pid_t child_pid = fork();
         if (child_pid == 0) {
-            close_wrapper(dup_stdout);
-            close_wrapper(pfd[1]);
+
             dup2_wrapper(pfd[0], STDIN_FILENO);
-            close_wrapper(pfd[0]);
 
 //            ...configure redirections
+            dup2_wrapper(used_fdout, 1);
 
             execute_command(cur_command_line[0], cur_command_line);
         }
@@ -723,16 +742,17 @@ void exec_shell_line(std::string &shell_line) {
     errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
     fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
     fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+    used_fdin = fdin;
     if (check_builtin(cur_command_line[0])) {
 //        ...configure redirections
-        run_builtin_command(cur_command_line, STDIN_FILENO);
+        run_builtin_command(cur_command_line, used_fdout);
     } else {
 
 //        std::cout << "CUR CMD FD: " << errfd << "  " << fdout << "  " << fdin << std::endl;
         pid_t child_pid = fork();
         if (child_pid == 0) {
-            close_wrapper(dup_stdout);
 //            ...configure redirections
+            dup2_wrapper(used_fdout, 1);
             execute_command(cur_command_line[0], cur_command_line);
         }
         child_pids.push_back(child_pid);
