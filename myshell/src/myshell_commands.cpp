@@ -651,9 +651,9 @@ void exec_shell_line(std::string &shell_line) {
     while (cmds_args.size() > 1) {
         cmd_args cur_command_line = cmds_args.back(); cmds_args.pop_back();
 
-//        errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-//        fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-//        fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+        errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+        fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+        fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
 //        std::cout << "CUR CMD FD: " << errfd << "  " << fdout << "  " << fdin << std::endl;
         int pfd[2];
         pipe(pfd);
@@ -683,9 +683,9 @@ void exec_shell_line(std::string &shell_line) {
         }
     }
     auto cur_command_line = cmds_args.back();
-//    errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-//    fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
-//    fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+    errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+    fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+    fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
     if (check_builtin(cur_command_line[0])) {
 //        ...configure redirections
         run_builtin_command(cur_command_line, STDIN_FILENO);
