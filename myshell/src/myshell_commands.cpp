@@ -658,7 +658,7 @@ void exec_shell_line(std::string &shell_line) {
     std::vector<cmd_args> cmds_args = split_shell_line(shell_line);
 
     std::vector<pid_t> child_pids;
-    int fdin, fdout, errfd, used_fdin, used_fdout, used_errfd;
+    int fdin, fdout, errfd, used_fdin = -100, used_fdout = -100, used_errfd = -100;
 
     int dup_stdout = dup_wrapper(STDOUT_FILENO);
     int dup_stdin = dup_wrapper(STDIN_FILENO);
@@ -705,6 +705,11 @@ void exec_shell_line(std::string &shell_line) {
     errfd = get_fd(cur_command_line.back()); cur_command_line.pop_back();
     fdout = get_fd(cur_command_line.back()); cur_command_line.pop_back();
     fdin = get_fd(cur_command_line.back()); cur_command_line.pop_back();
+
+    if (used_fdout == -100)
+        used_fdout =fdout;
+    if (used_errfd == -100)
+        used_errfd = errfd;
     used_fdin = fdin;
     if (check_builtin(cur_command_line[0])) {
 //        ...configure redirections
