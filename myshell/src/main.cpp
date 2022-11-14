@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 
         std::ifstream script_file(script_path);
         try {
-            exec_com_lines(script_file);
+            exec_shell_lines(script_file);
         } catch (std::exception &ex) {
             std::cerr << ex.what() << '\n';
             exit(EXIT_FAILURE);

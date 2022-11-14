@@ -20,6 +20,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <boost/filesystem.hpp>
+#include <unordered_set>
 
 #include "options_parser.h"
 #include "builtin_parsers/builtin_parser.h"
@@ -185,7 +186,7 @@ bool run_builtin_command(std::vector<std::string> &tokens, int fd_out) {
         if(std::filesystem::is_regular_file(path)) {
             std::ifstream script_file(path);
             try {
-                exec_com_lines(script_file);
+                exec_shell_lines(script_file);
             } catch (std::exception &ex) {
                 std::cerr << ex.what() << '\n';
                 exit_status = EXIT_FAILURE;
@@ -500,7 +501,7 @@ std::vector<cmd_args> split_shell_line(std::string &shell_line) {
     cmd_lines.push_back(cmd_line);
 
     std::vector<cmd_args> cmds_args;
-    for (std::string &line: cmd_lines) {
+    for (const std::string &line: cmd_lines) {
         cmd_args args = parse_com_line(line);
         cmds_args.push_back(args);
     }
@@ -508,24 +509,64 @@ std::vector<cmd_args> split_shell_line(std::string &shell_line) {
     return cmds_args;
 }
 
+/**
+ * @param string
+ * @returns whether the passed string is the name of the builtin command.
+ */
+static bool check_builtin(const std::string &s) {
+    std::unordered_set<std::string> builtins{"merrno", "mexport", "mexit", "mpwd", "mecho", "mcd", "."};
+    return builtins.count(s);
+}
+
 void exec_shell_line(std::string &shell_line) {
     std::vector<cmd_args> cmds_args = split_shell_line(shell_line);
 
-    int input_fd = open("intest", O_RDONLY);
-    int output_fd = STDOUT_FILENO; // open("outtest", O_WRONLY);
+    std::vector<pid_t> child_pids;
 
-    exec_piped_commands(cmds_args, input_fd, output_fd);
+    int dup_stdout = dup(STDOUT_FILENO);
+    while (cmds_args.size() > 1) {
+        cmd_args cur_command_line = cmds_args.back(); cmds_args.pop_back();
+        int pfd[2];
+        pipe(pfd);
+        pid_t child_pid = fork();
+        if (child_pid == 0) {
+            close(dup_stdout);
+            close(pfd[1]);
+            dup2(pfd[0], STDIN_FILENO);
+            close(pfd[0]);
 
-//    if (args.empty()) {
-//        return;
-//    }
-//    bool is_builtin = run_builtin_command(args);
-//    if (!is_builtin) {
-//        run_outer_command(args);
-//    }
+//            ...configure redirections
+
+            execute_command(cur_command_line[0], cur_command_line);
+        }
+        child_pids.push_back(child_pid);
+        close(pfd[0]);
+        dup2(pfd[1], STDOUT_FILENO);
+        close(pfd[1]);
+    }
+    auto cur_command_line = cmds_args.back();
+    if (check_builtin(cur_command_line[0])) {
+//        ...configure redirections
+        run_builtin_command(cur_command_line, STDOUT_FILENO);
+    } else {
+        pid_t child_pid = fork();
+        if (child_pid == 0) {
+            close(dup_stdout);
+//            ...configure redirections
+            execute_command(cur_command_line[0], cur_command_line);
+        }
+        child_pids.push_back(child_pid);
+    }
+    dup2(dup_stdout, STDOUT_FILENO);
+    close(dup_stdout);
+
+    for (pid_t child_pid : child_pids) {
+        int child_status;
+        waitpid(child_pid, &child_status, 0);
+    }
 }
 
-void exec_com_lines(std::basic_istream<char> &com_stream) {
+void exec_shell_lines(std::basic_istream<char> &com_stream) {
     std::string com_line;
     // don't use cin: 1. can't use later, 2. reads till ' '
     while (std::getline(com_stream, com_line)) {
