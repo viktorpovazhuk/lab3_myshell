@@ -344,7 +344,7 @@ std::vector<std::string> parse_com_line(const std::string &com_line) {
             continue;
         }
 
-        if ((value.find(">", begin)) != std::string::npos) {
+        if ((value.find(">ll", begin)) != std::string::npos) {
             if (value == "&>" || value == ">&") {
                 get_next_file_fd = true;
                 get_next_file_errfd = true;
